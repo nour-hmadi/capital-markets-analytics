@@ -1,5 +1,5 @@
 # Capital Markets Analytics Dashboard
-
+![Tests](https://github.com/nour-hmadi/capital-markets-analytics/actions/workflows/tests.yml/badge.svg)
 A self-learning data project to understand how capital markets work, by collecting real market data, analyzing it, and turning it into visual insights.
 
 > **Status: in progress.** See the roadmap below.
@@ -49,7 +49,31 @@ Public REST APIs  →  Python (collect & clean)  →  PostgreSQL (store)  →  P
 ## Tools
 
 Python · pandas · REST APIs · JSON · XML · Postman · SQL · PostgreSQL · Unix · Power BI · pytest · GitHub Actions
+## Project status
 
+- ✅ Day 1: capital markets basics, equity returns, bonds and yields, yield curve, FX quotes, compound interest
+- ✅ Day 2: bond pricing, duration and DV01, FX cross rates and forwards
+- ✅ Synthetic market data generator (equities, yield curves, FX), reproducible with a fixed seed
+- ✅ Pricing module with 30 pytest tests, run automatically by GitHub Actions
+- ⏳ Day 3: derivatives (forwards, futures, options, swaps)
+- ⏳ Day 4: trade lifecycle (front, middle and back office) and where Murex MX.3 fits
+
+## Project structure
+
+```
+notebooks/   learning notebooks, one per day
+src/         generate_data.py (synthetic data), pricing.py (bonds and FX)
+tests/       pricing tests and data validation tests
+data/        generated CSV files
+```
+
+## How to run
+
+```bash
+pip install -r requirements.txt
+python src/generate_data.py
+python -m pytest -v
+```
 ---
 
 *Author: Nour Hmadi · [LinkedIn](https://www.linkedin.com/in/nour-hmadi-b86a29438) · [GitHub](https://github.com/nour-hmadi)*
