@@ -1,0 +1,70 @@
+{
+  "info": {
+    "name": "Capital Markets Analytics API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://127.0.0.1:8000" }],
+  "item": [
+    {
+      "name": "Health check",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+        "pm.test('Service is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+      ]}}]
+    },
+    {
+      "name": "All trades",
+      "request": { "method": "GET", "url": "{{baseUrl}}/trades" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+        "pm.test('60 trades', () => pm.expect(pm.response.json()).to.have.lengthOf(60));"
+      ]}}]
+    },
+    {
+      "name": "FX trades only",
+      "request": { "method": "GET", "url": "{{baseUrl}}/trades?desk=FX" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+        "pm.test('Only FX trades', () => pm.response.json().forEach(t => pm.expect(t.desk).to.eql('FX')));"
+      ]}}]
+    },
+    {
+      "name": "Unknown desk is rejected",
+      "request": { "method": "GET", "url": "{{baseUrl}}/trades?desk=XYZ" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 400', () => pm.response.to.have.status(400));"
+      ]}}]
+    },
+    {
+      "name": "Latest P&L by desk",
+      "request": { "method": "GET", "url": "{{baseUrl}}/pnl" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+        "pm.test('Three desks', () => pm.expect(pm.response.json().desks).to.have.lengthOf(3));"
+      ]}}]
+    },
+    {
+      "name": "P&L on a weekend is not found",
+      "request": { "method": "GET", "url": "{{baseUrl}}/pnl?date=2025-06-07" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 404', () => pm.response.to.have.status(404));"
+      ]}}]
+    },
+    {
+      "name": "Par bond prices at 100",
+      "request": { "method": "GET", "url": "{{baseUrl}}/bond-price?coupon_rate=0.05&years=5&ytm=0.05" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+        "pm.test('Price is 100', () => pm.expect(pm.response.json().price).to.be.closeTo(100, 0.0001));"
+      ]}}]
+    },
+    {
+      "name": "Zero-year bond is rejected",
+      "request": { "method": "GET", "url": "{{baseUrl}}/bond-price?coupon_rate=0.05&years=0&ytm=0.05" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Status is 422', () => pm.response.to.have.status(422));"
+      ]}}]
+    }
+  ]
+}
