@@ -2,3 +2,5 @@ numpy
 pandas
 matplotlib
 pytest
+sqlalchemy
+psycopg2-binary

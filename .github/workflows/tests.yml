@@ -9,6 +9,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: capital_markets
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/capital_markets
+
     steps:
       - name: Check out the code
         uses: actions/checkout@v5
@@ -23,4 +42,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run tests
-        run: python -m pytest -v
+        run: python -m pytest -v -rs
