@@ -3,6 +3,7 @@ import argparse
 import logging
 import time
 
+import export_xml
 import generate_data
 import load_db
 import trades
@@ -15,6 +16,7 @@ log = logging.getLogger("pipeline")
 STEPS = [
     ("Generate market data", generate_data.main),
     ("Book trades", trades.main),
+    ("Export XML trade messages", export_xml.main),
     ("Value the book", valuation.main),
     ("Load the database", load_db.main),
 ]

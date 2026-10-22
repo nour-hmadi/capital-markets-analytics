@@ -5,7 +5,7 @@ from pathlib import Path
 import pipeline
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-FILES = ["equities.csv", "yield_curves.csv", "fx_rates.csv", "trades.csv", "valuations.csv"]
+FILES = ["equities.csv", "yield_curves.csv", "fx_rates.csv", "trades.csv", "trades.xml", "valuations.csv"]
 
 
 def checksums():

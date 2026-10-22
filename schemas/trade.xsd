@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema for trade messages exported from the capital markets project.
+     Simplified, FpML-inspired structure (real FpML also uses XML namespaces). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <!-- ========== Simple types: rules for single values ========== -->
+
+  <xs:simpleType name="TradeIdType">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="T[0-9]{5}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DeskType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="EQUITY"/>
+      <xs:enumeration value="RATES"/>
+      <xs:enumeration value="FX"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DirectionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="BUY"/>
+      <xs:enumeration value="SELL"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="NonEmptyStringType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="PositiveDecimalType">
+    <xs:restriction base="xs:decimal">
+      <xs:minExclusive value="0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="RateType">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ========== Product blocks: one per instrument type ========== -->
+
+  <xs:complexType name="EquityType">
+    <xs:sequence>
+      <xs:element name="index">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="INDEX_[A-Z]+"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BondType">
+    <xs:sequence>
+      <xs:element name="security">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="GOV_[0-9]+Y"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="couponRate" type="RateType"/>
+      <xs:element name="maturityYears" type="xs:positiveInteger"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FxForwardType">
+    <xs:sequence>
+      <xs:element name="currencyPair">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[A-Z]{6}"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="spotAtTrade" type="PositiveDecimalType"/>
+      <xs:element name="maturityDate" type="xs:date"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ========== A trade: common fields, then exactly one product block ========== -->
+
+  <xs:complexType name="TradeType">
+    <xs:sequence>
+      <xs:element name="tradeId" type="TradeIdType"/>
+      <xs:element name="tradeDate" type="xs:date"/>
+      <xs:element name="desk" type="DeskType"/>
+      <xs:element name="counterparty" type="NonEmptyStringType"/>
+      <xs:element name="direction" type="DirectionType"/>
+      <xs:element name="quantity" type="xs:positiveInteger"/>
+      <xs:element name="tradePrice" type="PositiveDecimalType"/>
+      <xs:choice>
+        <xs:element name="equity" type="EquityType"/>
+        <xs:element name="bond" type="BondType"/>
+        <xs:element name="fxForward" type="FxForwardType"/>
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ========== The root: a list of trades with unique IDs ========== -->
+
+  <xs:element name="trades">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="trade" type="TradeType" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:unique name="uniqueTradeId">
+      <xs:selector xpath="trade"/>
+      <xs:field xpath="tradeId"/>
+    </xs:unique>
+  </xs:element>
+
+</xs:schema>

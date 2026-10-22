@@ -1,5 +1,6 @@
 numpy
 pandas
+lxml
 matplotlib
 pytest
 sqlalchemy

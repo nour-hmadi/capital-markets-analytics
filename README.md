@@ -77,3 +77,22 @@ python -m pytest -v
 ---
 
 *Author: Nour Hmadi · [LinkedIn](https://www.linkedin.com/in/nour-hmadi-b86a29438) · [GitHub](https://github.com/nour-hmadi)*
+## XML trade messages
+
+Banks keep market data and trades in databases and tables. XML is used when one system **sends** a trade to another, for example from the trading platform to settlement. Industry standards such as **FpML** are XML-based.
+
+This project follows the same design: the CSV files and the PostgreSQL database are the **source of truth**, and `src/export_xml.py` generates XML trade messages from them when needed.
+
+| File | Purpose |
+|---|---|
+| `schemas/trade.xsd` | the rules for a trade message: required fields, allowed values (BUY/SELL, desks), formats (trade IDs, dates), positive quantities and prices, exactly one product block, unique trade IDs |
+| `schemas/sample_trades.xml` | a hand-written example message |
+| `src/export_xml.py` | converts `data/trades.csv` into `data/trades.xml`, validating every message before saving |
+| `tests/test_xml.py` | 15 tests (below) |
+
+The conversion demonstrates four testing skills:
+
+- **Validation:** every generated message passes the XSD
+- **Negative tests:** 10 deliberately broken messages are rejected (invalid direction, negative quantity, missing field, duplicate trade ID…)
+- **Round trip:** CSV → XML → table returns exactly the original data
+- **Business rules beyond the schema:** an XSD can't check that the EQUITY desk books only equity trades, so a separate check covers it
