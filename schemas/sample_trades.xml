@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<trades>
+  <trade>
+    <tradeId>T00001</tradeId>
+    <tradeDate>2025-12-01</tradeDate>
+    <desk>EQUITY</desk>
+    <counterparty>Gamma Insurance</counterparty>
+    <direction>BUY</direction>
+    <quantity>900</quantity>
+    <tradePrice>20604.16</tradePrice>
+    <equity>
+      <index>INDEX_TECH</index>
+    </equity>
+  </trade>
+  <trade>
+    <tradeId>T00002</tradeId>
+    <tradeDate>2025-12-01</tradeDate>
+    <desk>RATES</desk>
+    <counterparty>Alpha Bank</counterparty>
+    <direction>SELL</direction>
+    <quantity>9000000</quantity>
+    <tradePrice>100.3514</tradePrice>
+    <bond>
+      <security>GOV_10Y</security>
+      <couponRate>0.0375</couponRate>
+      <maturityYears>10</maturityYears>
+    </bond>
+  </trade>
+</trades>
