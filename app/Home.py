@@ -13,8 +13,8 @@ st.markdown(
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Trades in the book", "60")
 c2.metric("Daily valuations", "7,403")
-c3.metric("Python tests", "140")
-c4.metric("dbt tests", "24")
+c3.metric("Python tests", "158")
+c4.metric("dbt tests", "34")
 
 st.subheader("Explore")
 st.markdown(
