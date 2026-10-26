@@ -96,3 +96,40 @@ The conversion demonstrates four testing skills:
 - **Negative tests:** 10 deliberately broken messages are rejected (invalid direction, negative quantity, missing field, duplicate trade ID…)
 - **Round trip:** CSV → XML → table returns exactly the original data
 - **Business rules beyond the schema:** an XSD can't check that the EQUITY desk books only equity trades, so a separate check covers it
+
+
+## dbt transformation layer
+
+The Python pipeline loads the raw tables into PostgreSQL. **dbt** then transforms them inside the database into tested, documented models:
+
+```
+public                  raw tables, loaded by src/load_db.py
+analytics_staging       stg_* views: one clean model per raw table
+analytics_intermediate  int_valuations_enriched: valuations joined to trades
+analytics_marts         fct_daily_pnl_by_desk: incremental, with an enforced contract
+                        fct_daily_rates_risk: DV01 per bond and a +10 bp shock scenario
+```
+
+| Practice | How it's used here |
+|---|---|
+| Layers and naming | staging → intermediate → marts, with `stg_`, `int_` and `fct_` prefixes |
+| Materializations | staging and intermediate as views, marts as tables, daily P&L as an incremental model |
+| Model contract | the P&L mart's column names and types are enforced at build time |
+| Tests | 24 generic and singular tests, including a reconciliation of the mart against trade-level valuations |
+| Macro | `rate_shock_pnl`: one reusable formula for the DV01 shock |
+| Docs and lineage | generated with `dbt docs` |
+| CI | `dbt build` runs on every pull request against a PostgreSQL service container, with pinned dbt versions in a separate environment |
+
+### Run it locally
+
+```bash
+python -m venv ~/venvs/dbt
+~/venvs/dbt/bin/pip install -r requirements-dbt.txt
+python src/load_db.py
+cd dbt
+~/venvs/dbt/bin/dbt build --profiles-dir .
+~/venvs/dbt/bin/dbt docs generate --profiles-dir .
+~/venvs/dbt/bin/dbt docs serve --profiles-dir . --port 8081
+```
+
+**Known limitation:** the market data is staged and tested, but no mart uses it yet.
