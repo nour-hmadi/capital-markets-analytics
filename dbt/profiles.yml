@@ -1,0 +1,22 @@
+# Connection settings. No passwords are stored here: CI passes them as environment variables.
+capital_markets:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:                                   # your laptop: local socket, peer authentication
+      type: postgres
+      host: /var/run/postgresql
+      port: 5432
+      user: "{{ env_var('USER') }}"
+      password: ""
+      dbname: capital_markets
+      schema: analytics
+      threads: 4
+    ci:                                    # GitHub Actions: PostgreSQL service container
+      type: postgres
+      host: "{{ env_var('DBT_HOST', 'localhost') }}"
+      port: 5432
+      user: "{{ env_var('DBT_USER') }}"
+      password: "{{ env_var('DBT_PASSWORD') }}"
+      dbname: capital_markets
+      schema: analytics
+      threads: 4

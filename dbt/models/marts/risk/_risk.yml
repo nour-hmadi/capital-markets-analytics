@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: fct_daily_rates_risk
+    description: >
+      Daily interest rate risk per government bond: net DV01 (USD lost per +1 bp)
+      and the P&L of a +10 bp parallel shock.
+    columns:
+      - name: valuation_date
+        data_tests: [not_null]
+      - name: security
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['GOV_1Y', 'GOV_2Y', 'GOV_5Y', 'GOV_10Y', 'GOV_30Y']
+      - name: dv01_usd
+        data_tests: [not_null]

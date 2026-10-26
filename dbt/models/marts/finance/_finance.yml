@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: fct_daily_pnl_by_desk
+    description: >
+      Daily P&L, market value and DV01 per desk, in USD.
+      Incremental: each run only processes dates newer than those already in the table.
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: valuation_date
+        data_type: date
+        constraints:
+          - type: not_null
+        data_tests: [not_null]
+      - name: desk
+        data_type: text
+        constraints:
+          - type: not_null
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['EQUITY', 'RATES', 'FX']
+      - name: trade_count
+        data_type: bigint
+      - name: market_value_usd
+        data_type: numeric(18,2)
+      - name: pnl_usd
+        data_type: numeric(18,2)
+      - name: dv01_usd
+        data_type: numeric(18,2)

@@ -1,8 +1,8 @@
 -- Star schema for the capital markets project
-DROP TABLE IF EXISTS fact_valuations;
-DROP TABLE IF EXISTS fact_market_prices;
-DROP TABLE IF EXISTS dim_trade;
-DROP TABLE IF EXISTS dim_date;
+DROP TABLE IF EXISTS fact_valuations CASCADE;
+DROP TABLE IF EXISTS fact_market_prices CASCADE;
+DROP TABLE IF EXISTS dim_trade CASCADE;
+DROP TABLE IF EXISTS dim_date CASCADE;
 
 CREATE TABLE dim_date (
     date        DATE PRIMARY KEY,

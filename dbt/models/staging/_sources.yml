@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw tables loaded into PostgreSQL by the Python pipeline (src/load_db.py).
+    schema: public
+    tables:
+      - name: dim_date
+        description: One row per market date.
+        columns:
+          - name: date
+            data_tests: [unique, not_null]
+      - name: dim_trade
+        description: One row per trade in the book.
+        columns:
+          - name: trade_id
+            data_tests: [unique, not_null]
+      - name: fact_market_prices
+        description: One row per date and market series (index level, yield or FX rate).
+      - name: fact_valuations
+        description: One row per trade per date, with market value, P&L and DV01 in USD.
