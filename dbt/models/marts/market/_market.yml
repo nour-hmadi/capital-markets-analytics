@@ -1,0 +1,17 @@
+version: 2
+
+models:
+  - name: fct_market_prices
+    description: >
+      Daily market data in long format, with day-on-day changes computed with window functions:
+      change in bp for yields, simple return for equity indices and FX.
+    columns:
+      - name: price_date
+        data_tests: [not_null]
+      - name: series
+        data_tests: [not_null]
+      - name: asset_class
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['EQUITY', 'RATES', 'FX']
