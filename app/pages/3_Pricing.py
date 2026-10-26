@@ -47,7 +47,7 @@ with bond_tab:
 
 # ---------- FX forward ----------
 with fx_tab:
-    fx = load_market("fx_rates.csv")
+    fx = load_market("FX")
     pair = st.selectbox("Currency pair", ["EURUSD", "GBPUSD", "USDJPY"])
     base, quote = pair[:3], pair[3:]
 

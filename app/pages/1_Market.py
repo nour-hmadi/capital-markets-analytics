@@ -9,9 +9,9 @@ st.set_page_config(page_title="Market", page_icon="📈", layout="wide")
 st.title("Market overview")
 st.caption("Synthetic data: one year of trading days.")
 
-equities = load_market("equities.csv")
-curves = load_market("yield_curves.csv")
-fx = load_market("fx_rates.csv")
+equities = load_market("EQUITY")
+curves = load_market("RATES")
+fx = load_market("FX")
 
 # ---------- Equities ----------
 st.header("Equity indices")

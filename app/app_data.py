@@ -1,25 +1,73 @@
-"""Shared data loading for every page. Results are cached, so each CSV is read only once."""
+"""Data access for every page: the app asks the API; it never reads files or the database.
+
+Free hosting sleeps when idle, so the first request after a quiet period can take up to a minute.
+"""
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
+import requests
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
-sys.path.insert(0, str(ROOT / "src"))      # lets pages import analytics.py and pricing.py
+sys.path.insert(0, str(ROOT / "src"))      # the pricing tools still use pricing.py directly
+
+API_URL = os.environ.get("API_URL", "https://capital-markets-api.onrender.com")
+TIMEOUT_SECONDS = 90                        # long enough for a cold start
+
+# Pivoting sorts series alphabetically: that would scramble the yield curve (10Y before 1Y)
+# and make the EURGBP cross rate the default FX pair. Known series keep this order.
+SERIES_ORDER = {
+    "EQUITY": ["INDEX_US", "INDEX_TECH", "INDEX_EU"],
+    "RATES": ["1Y", "2Y", "5Y", "10Y", "30Y"],
+    "FX": ["EURUSD", "GBPUSD", "USDJPY", "EURGBP"],
+}
 
 
-@st.cache_data
-def load_market(name):
-    return pd.read_csv(DATA_DIR / name, index_col="date", parse_dates=True)
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch(path, params=None, as_text=False):
+    response = requests.get(f"{API_URL}{path}", params=params, timeout=TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.text if as_text else response.json()
 
 
-@st.cache_data
-def load_trades():
-    return pd.read_csv(DATA_DIR / "trades.csv", parse_dates=["trade_date", "maturity_date"])
+def api(path, params=None, as_text=False):
+    """Call the API with a friendly message, and stop the page cleanly if it fails."""
+    with st.spinner("Loading from the API… (the free backend can take up to a minute to wake up)"):
+        try:
+            return _fetch(path, params, as_text)
+        except requests.RequestException as error:
+            st.error(f"The API is not reachable right now ({error.__class__.__name__}). "
+                     "Please refresh in a minute.")
+            st.stop()
 
 
-@st.cache_data
-def load_valuations():
-    return pd.read_csv(DATA_DIR / "valuations.csv", parse_dates=["date"])
+def load_market(asset_class):
+    """One column per series, one row per date, from GET /market-prices?asset_class=..."""
+    prices = pd.DataFrame(api("/market-prices", {"asset_class": asset_class})["prices"])
+    prices["price_date"] = pd.to_datetime(prices["price_date"])
+    wide = prices.pivot(index="price_date", columns="series", values="value")
+    wide.index.name, wide.columns.name = "date", None
+    known = [s for s in SERIES_ORDER.get(asset_class, []) if s in wide.columns]
+    others = [s for s in wide.columns if s not in known]      # new series go last, never lost
+    return wide[known + others]
+
+
+def load_pnl_history():
+    history = pd.DataFrame(api("/pnl/history"))
+    history["valuation_date"] = pd.to_datetime(history["valuation_date"])
+    return history.pivot(index="valuation_date", columns="desk", values="pnl")
+
+
+def load_positions():
+    body = api("/positions")
+    return body["date"], pd.DataFrame(body["positions"])
+
+
+def load_risk():
+    return api("/risk")
+
+
+def load_trade_xml(trade_id):
+    return api(f"/trades/{trade_id}/xml", as_text=True)

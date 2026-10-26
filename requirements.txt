@@ -10,3 +10,4 @@ pytest==7.4.4
 SQLAlchemy==2.0.49
 streamlit==1.66.1
 uvicorn==0.44.0
+requests==2.32.2
