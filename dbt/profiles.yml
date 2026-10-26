@@ -20,3 +20,14 @@ capital_markets:
       dbname: capital_markets
       schema: analytics
       threads: 4
+
+    cloud:                                 # Neon: cloud PostgreSQL, credentials from .env
+      type: postgres
+      host: "{{ env_var('NEON_HOST') }}"
+      port: 5432
+      user: "{{ env_var('NEON_USER') }}"
+      password: "{{ env_var('NEON_PASSWORD') }}"
+      dbname: "{{ env_var('NEON_DBNAME', 'neondb') }}"
+      schema: analytics
+      sslmode: require
+      threads: 4
