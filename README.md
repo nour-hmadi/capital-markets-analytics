@@ -1,5 +1,6 @@
 # Capital Markets Analytics Dashboard
 ![Tests](https://github.com/nour-hmadi/capital-markets-analytics/actions/workflows/tests.yml/badge.svg)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://capital-markets-analytics.streamlit.app)
 A self-learning data project to understand how capital markets work, by collecting real market data, analyzing it, and turning it into visual insights.
 
 > **Status: in progress.** See the roadmap below.
