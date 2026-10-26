@@ -18,7 +18,7 @@ def marts_problem():
     """Return None if the dbt marts are ready, otherwise the reason they aren't."""
     try:
         with create_engine(DATABASE_URL).connect() as conn:
-            ready = conn.execute(text("SELECT to_regclass('analytics_marts.fct_market_prices')")).scalar()
+            ready = conn.execute(text("SELECT to_regclass('analytics_marts.fct_positions')")).scalar()
     except Exception:
         return "PostgreSQL is not available"
     return None if ready else "dbt marts are missing: run load_db.py, then dbt build"
@@ -150,3 +150,60 @@ def test_zero_years_returns_422(client):
 
 def test_missing_parameters_return_422(client):
     assert client.get("/bond-price").status_code == 422
+# ---------- P&L history ----------
+
+def test_pnl_history_reconciles_on_the_last_date(client):
+    history = client.get("/pnl/history").json()
+    last_date = max(row["valuation_date"] for row in history)
+    last_total = sum(float(row["pnl"]) for row in history if row["valuation_date"] == last_date)
+    assert last_date == "2025-12-18"
+    assert last_total == pytest.approx(-6_828_524, abs=1)
+
+
+def test_pnl_history_desk_filter(client):
+    history = client.get("/pnl/history", params={"desk": "rates"}).json()
+    assert history and all(row["desk"] == "RATES" for row in history)
+
+
+def test_pnl_history_unknown_desk_returns_400(client):
+    assert client.get("/pnl/history", params={"desk": "XYZ"}).status_code == 400
+
+
+# ---------- Positions (from fct_positions) ----------
+
+def test_latest_positions_reconcile_with_desk_pnl(client):
+    positions = client.get("/positions").json()["positions"]
+    assert len(positions) == 60
+    assert sum(float(p["pnl_usd"]) for p in positions) == pytest.approx(-6_828_524, abs=1)
+
+
+def test_positions_are_sorted_worst_first(client):
+    worst = client.get("/positions").json()["positions"][0]
+    assert worst["trade_id"] == "T00001"
+    assert float(worst["pnl_usd"]) == pytest.approx(-2_483_054, abs=1)
+
+
+def test_positions_desk_filter(client):
+    positions = client.get("/positions", params={"desk": "FX"}).json()["positions"]
+    assert len(positions) == 20
+    assert all(p["desk"] == "FX" for p in positions)
+
+
+def test_positions_on_a_weekend_returns_404(client):
+    assert client.get("/positions", params={"date": "2025-06-07"}).status_code == 404
+
+
+# ---------- Market prices by asset class ----------
+
+def test_market_prices_by_asset_class(client):
+    prices = client.get("/market-prices", params={"asset_class": "EQUITY"}).json()["prices"]
+    assert len(prices) == 3 * 252
+    assert {p["series"] for p in prices} == {"INDEX_US", "INDEX_TECH", "INDEX_EU"}
+
+
+def test_market_prices_needs_a_filter(client):
+    assert client.get("/market-prices").status_code == 400
+
+
+def test_unknown_asset_class_returns_400(client):
+    assert client.get("/market-prices", params={"asset_class": "CRYPTO"}).status_code == 400

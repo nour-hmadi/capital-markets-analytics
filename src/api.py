@@ -17,15 +17,26 @@ from export_xml import load_schema, trade_to_xml
 from load_db import DATABASE_URL
 from pricing import bond_price, dv01, macaulay_duration
 
-app = FastAPI(title="Capital Markets Analytics API", version="2.0")
+app = FastAPI(title="Capital Markets Analytics API", version="2.1")
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)   # reconnects if the cloud DB went idle
 MARTS = "analytics_marts"
 VALID_DESKS = {"EQUITY", "RATES", "FX"}
+VALID_ASSET_CLASSES = {"EQUITY", "RATES", "FX"}
 SCHEMA = load_schema()
 
 
 def latest_date(conn, table):
     return conn.execute(text(f"SELECT MAX(valuation_date) FROM {MARTS}.{table}")).scalar()
+
+
+def check_desk(desk):
+    """None stays None; a known desk is returned in capitals; anything else is a 400."""
+    if desk is None:
+        return None
+    if desk.upper() not in VALID_DESKS:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown desk '{desk}'. Use one of {sorted(VALID_DESKS)}")
+    return desk.upper()
 
 
 @app.get("/health")
@@ -35,18 +46,15 @@ def health():
 
 @app.get("/trades")
 def list_trades(desk: Optional[str] = None):
-    if desk is not None and desk.upper() not in VALID_DESKS:
-        raise HTTPException(status_code=400,
-                            detail=f"Unknown desk '{desk}'. Use one of {sorted(VALID_DESKS)}")
-    query = ("SELECT trade_id, trade_date, desk, instrument_type, underlying, direction, "
-             "quantity, trade_price, counterparty FROM dim_trade")
-    params = {}
-    if desk:
-        query += " WHERE desk = :desk"
-        params["desk"] = desk.upper()
-    query += " ORDER BY trade_id"
+    desk = check_desk(desk)
     with engine.connect() as conn:
-        rows = conn.execute(text(query), params).mappings().all()
+        rows = conn.execute(text("""
+            SELECT trade_id, trade_date, desk, instrument_type, underlying, direction,
+                   quantity, trade_price, counterparty
+            FROM dim_trade
+            WHERE CAST(:desk AS text) IS NULL OR desk = :desk
+            ORDER BY trade_id
+        """), {"desk": desk}).mappings().all()
     return [dict(row) for row in rows]
 
 
@@ -65,6 +73,37 @@ def pnl_by_desk(date: Optional[Date] = None):
     desks = [dict(row) for row in rows]
     return {"date": date, "desks": desks,
             "total_pnl": round(sum(float(d["pnl"]) for d in desks), 2)}
+
+
+@app.get("/pnl/history")
+def pnl_history(desk: Optional[str] = None):
+    desk = check_desk(desk)
+    with engine.connect() as conn:
+        rows = conn.execute(text(f"""
+            SELECT valuation_date, desk, pnl_usd AS pnl
+            FROM {MARTS}.fct_daily_pnl_by_desk
+            WHERE CAST(:desk AS text) IS NULL OR desk = :desk
+            ORDER BY valuation_date, desk
+        """), {"desk": desk}).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@app.get("/positions")
+def positions(date: Optional[Date] = None, desk: Optional[str] = None):
+    desk = check_desk(desk)
+    with engine.connect() as conn:
+        date = date or latest_date(conn, "fct_positions")
+        rows = conn.execute(text(f"""
+            SELECT trade_id, desk, instrument_type, underlying, direction, counterparty,
+                   market_value_usd, pnl_usd, dv01_usd, trade_status
+            FROM {MARTS}.fct_positions
+            WHERE valuation_date = :date
+              AND (CAST(:desk AS text) IS NULL OR desk = :desk)
+            ORDER BY pnl_usd
+        """), {"date": date, "desk": desk}).mappings().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No positions on {date}")
+    return {"date": date, "positions": [dict(row) for row in rows]}
 
 
 @app.get("/risk")
@@ -89,21 +128,32 @@ def rates_risk(date: Optional[Date] = None):
 
 
 @app.get("/market-prices")
-def market_prices(series: str, start: Optional[Date] = None, end: Optional[Date] = None):
-    with engine.connect() as conn:
-        known = set(conn.execute(text(f"SELECT DISTINCT series FROM {MARTS}.fct_market_prices")).scalars())
-        if series not in known:
+def market_prices(series: Optional[str] = None, asset_class: Optional[str] = None,
+                  start: Optional[Date] = None, end: Optional[Date] = None):
+    if series is None and asset_class is None:
+        raise HTTPException(status_code=400,
+                            detail="Give a series (e.g. EURUSD) or an asset_class (EQUITY, RATES, FX)")
+    if asset_class is not None:
+        asset_class = asset_class.upper()
+        if asset_class not in VALID_ASSET_CLASSES:
             raise HTTPException(status_code=400,
-                                detail=f"Unknown series '{series}'. Use one of {sorted(known)}")
+                                detail=f"Unknown asset class. Use one of {sorted(VALID_ASSET_CLASSES)}")
+    with engine.connect() as conn:
+        if series is not None:
+            known = set(conn.execute(text(f"SELECT DISTINCT series FROM {MARTS}.fct_market_prices")).scalars())
+            if series not in known:
+                raise HTTPException(status_code=400,
+                                    detail=f"Unknown series '{series}'. Use one of {sorted(known)}")
         rows = conn.execute(text(f"""
-            SELECT price_date, value, daily_change, daily_change_bp, daily_return
+            SELECT price_date, asset_class, series, value, daily_change, daily_change_bp, daily_return
             FROM {MARTS}.fct_market_prices
-            WHERE series = :series
+            WHERE (CAST(:series AS text) IS NULL OR series = :series)
+              AND (CAST(:asset_class AS text) IS NULL OR asset_class = :asset_class)
               AND (CAST(:start AS date) IS NULL OR price_date >= :start)
               AND (CAST(:end AS date) IS NULL OR price_date <= :end)
-            ORDER BY price_date
-        """), {"series": series, "start": start, "end": end}).mappings().all()
-    return {"series": series, "prices": [dict(row) for row in rows]}
+            ORDER BY series, price_date
+        """), {"series": series, "asset_class": asset_class, "start": start, "end": end}).mappings().all()
+    return {"series": series, "asset_class": asset_class, "prices": [dict(row) for row in rows]}
 
 
 @app.get("/trades/{trade_id}/xml")

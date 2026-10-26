@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: fct_positions
+    description: >
+      Trade-level positions: one row per trade per day, with market value, P&L and DV01 in USD.
+      Feeds the portfolio page (winners and losers) through the API.
+    columns:
+      - name: valuation_date
+        data_tests: [not_null]
+      - name: trade_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_trades')
+                field: trade_id
+      - name: trade_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['LIVE', 'MATURED']
