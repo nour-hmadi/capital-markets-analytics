@@ -45,9 +45,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Python tests
-        run: python -m pytest -v -rs
-
       - name: Install dbt in its own environment
         run: |
           python -m venv .dbt-venv
@@ -58,3 +55,6 @@ jobs:
 
       - name: Build and test dbt models
         run: .dbt-venv/bin/dbt build --project-dir dbt --profiles-dir dbt
+
+      - name: Run Python tests
+        run: python -m pytest -v -rs
