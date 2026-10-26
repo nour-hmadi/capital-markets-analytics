@@ -10,6 +10,10 @@ DATA_DIR = ROOT / "data"
 SCHEMA_FILE = ROOT / "sql" / "schema.sql"
 # Local socket + peer authentication by default; CI can override it with an environment variable
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+psycopg2:///capital_markets")
+# Cloud providers give "postgresql://...": name the driver explicitly, because the default
+# PostgreSQL driver of SQLAlchemy differs between versions.
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len("postgresql://"):]
 TABLES = ["dim_date", "dim_trade", "fact_market_prices", "fact_valuations"]
 
 
