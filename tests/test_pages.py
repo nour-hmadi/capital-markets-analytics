@@ -24,6 +24,7 @@ def api_in_process(client, monkeypatch):
         return response.text if as_text else response.json()
 
     monkeypatch.setattr(app_data, "api", call)
+    monkeypatch.setattr(app_data, "_fetch", call)
     monkeypatch.setattr(app_data, "wake_backend", lambda: None)   # tests never call the internet
 
 

@@ -82,3 +82,11 @@ def wake_backend():
         except requests.RequestException:
             pass                        # the pages show their own message if the API is down
     threading.Thread(target=ping, daemon=True).start()
+
+
+def load_last_run():
+    """When the data was last refreshed, or None. It's extra information, so it never stops the page."""
+    try:
+        return _fetch("/pipeline/last-run")
+    except Exception:
+        return None
