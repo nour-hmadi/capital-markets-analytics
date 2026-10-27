@@ -17,6 +17,13 @@ if DATABASE_URL.startswith("postgresql://"):
 TABLES = ["dim_date", "dim_trade", "fact_market_prices", "fact_valuations"]
 
 
+def triggered_by():
+    """Who ran the load: GitHub Actions (and why), or a person."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        return f"GitHub Actions ({os.environ.get('GITHUB_EVENT_NAME', 'unknown')})"
+    return "manual"
+
+
 def read_market(name):
     return pd.read_csv(DATA_DIR / name, index_col="date", parse_dates=True)
 
@@ -62,6 +69,8 @@ def load_all(engine):
         for name in TABLES:                           # dimensions first, then facts
             tables[name].to_sql(name, conn, if_exists="append", index=False,
                                 method="multi", chunksize=1000)
+        conn.execute(text("INSERT INTO pipeline_runs (triggered_by, valuations_loaded) "
+                          "VALUES (:who, :rows)"), {"who": triggered_by(), "rows": len(valuations)})
 
 
 def main():
