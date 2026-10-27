@@ -4,6 +4,7 @@ Free hosting sleeps when idle, so the first request after a quiet period can tak
 """
 import os
 import sys
+import threading
 from pathlib import Path
 
 import pandas as pd
@@ -71,3 +72,13 @@ def load_risk():
 
 def load_trade_xml(trade_id):
     return api(f"/trades/{trade_id}/xml", as_text=True)
+
+
+def wake_backend():
+    """Ping the API in the background, so it is awake by the time the visitor opens a page."""
+    def ping():
+        try:
+            requests.get(f"{API_URL}/health", timeout=TIMEOUT_SECONDS)
+        except requests.RequestException:
+            pass                        # the pages show their own message if the API is down
+    threading.Thread(target=ping, daemon=True).start()
