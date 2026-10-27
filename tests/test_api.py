@@ -1,37 +1,12 @@
 """API tests: status codes, filters, validation, and values reconciled with the dbt marts.
 
 They need a loaded database with the dbt marts built: run src/load_db.py, then dbt build.
+The `client` fixture is in conftest.py, shared with the page tests.
 """
-import os
-
 import pytest
-from fastapi.testclient import TestClient
 from lxml import etree
-from sqlalchemy import create_engine, text
 
-from api import app
 from export_xml import load_schema
-from load_db import DATABASE_URL
-
-
-def marts_problem():
-    """Return None if the dbt marts are ready, otherwise the reason they aren't."""
-    try:
-        with create_engine(DATABASE_URL).connect() as conn:
-            ready = conn.execute(text("SELECT to_regclass('analytics_marts.fct_positions')")).scalar()
-    except Exception:
-        return "PostgreSQL is not available"
-    return None if ready else "dbt marts are missing: run load_db.py, then dbt build"
-
-
-@pytest.fixture(scope="module")
-def client():
-    problem = marts_problem()
-    if problem:
-        if os.environ.get("CI"):
-            pytest.fail(problem)
-        pytest.skip(problem)
-    return TestClient(app)
 
 
 # ---------- Health and trades ----------
