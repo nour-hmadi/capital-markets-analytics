@@ -4,6 +4,10 @@ import app_data  # noqa: F401  (sets up the import path for the pages)
 
 st.set_page_config(page_title="Capital Markets Analytics", page_icon="📈", layout="wide")
 
+if "backend_woken" not in st.session_state:   # once per visitor
+    st.session_state.backend_woken = True
+    app_data.wake_backend()
+
 st.title("Capital Markets Analytics")
 st.markdown(
     "An end-to-end capital markets data project: market data, a trade book, "
@@ -26,6 +30,8 @@ st.markdown(
 )
 
 st.info("All market data is synthetic (simulated with a fixed seed), not real market data.")
+st.caption("The free backend sleeps when nobody uses it. Opening this page wakes it up, "
+           "so the other pages load faster.")
 st.markdown("Code, tests and documentation: "
             "[github.com/nour-hmadi/capital-markets-analytics]"
             "(https://github.com/nour-hmadi/capital-markets-analytics)")
