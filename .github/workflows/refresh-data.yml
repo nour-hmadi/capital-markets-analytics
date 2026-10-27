@@ -1,0 +1,48 @@
+name: Refresh cloud data
+
+on:
+  workflow_dispatch:            # adds a "Run workflow" button in the Actions tab
+  schedule:
+    - cron: "17 5 * * 1-5"      # every weekday at 05:17 UTC (07:17 in Beirut)
+
+concurrency:
+  group: refresh-cloud-data     # never two refreshes at the same time
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      DBT_TARGET: cloud
+      NEON_HOST: ${{ secrets.NEON_HOST }}
+      NEON_USER: ${{ secrets.NEON_USER }}
+      NEON_PASSWORD: ${{ secrets.NEON_PASSWORD }}
+      NEON_DBNAME: ${{ secrets.NEON_DBNAME }}
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install dbt in its own environment
+        run: |
+          python -m venv .dbt-venv
+          .dbt-venv/bin/pip install -r requirements-dbt.txt
+
+      - name: Run the pipeline into Neon
+        run: python src/pipeline.py
+
+      - name: Build and test the dbt models in Neon
+        run: .dbt-venv/bin/dbt build --project-dir dbt --profiles-dir dbt
+
+      - name: Smoke test the live API
+        run: python -m pytest smoke -v
