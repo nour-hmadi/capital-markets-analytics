@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from app_data import API_URL, load_pnl_history, load_positions, load_risk, load_trade_xml
+from app_data import API_URL, load_pnl_history, load_positions, load_last_run, load_risk, load_trade_xml
 from charts import bar_chart, line_chart
 
 st.set_page_config(page_title="Portfolio", page_icon="💼", layout="wide")
@@ -33,7 +33,13 @@ c1.metric("Total P&L", usd(positions["pnl_usd"].sum()))
 c2.metric("Rates DV01 (per bp)", usd(positions["dv01_usd"].sum()))
 c3.metric("Live trades", int((positions["trade_status"] == "LIVE").sum()))
 c4.metric("Matured FX forwards", int((positions["trade_status"] == "MATURED").sum()))
-st.caption(f"As of {pd.Timestamp(as_of):%d %B %Y} · served live by the API: {API_URL}/docs")
+last_run = load_last_run()
+refreshed = ""
+if last_run:
+    when = pd.Timestamp(last_run["loaded_at"]).tz_convert("UTC")
+    who = "manually" if last_run["triggered_by"] == "manual" else f"by {last_run['triggered_by']}"
+    refreshed = f" · data refreshed {when:%d %b %Y, %H:%M} UTC {who}"
+st.caption(f"As of {pd.Timestamp(as_of):%d %B %Y}{refreshed} · served live by the API: {API_URL}/docs")
 
 # ---------- P&L ----------
 st.subheader("P&L over time, by desk")
