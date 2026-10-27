@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from app_data import load_market
+from charts import line_chart
 from analytics import (annualised_volatility, curve_spread_bp, daily_returns,
                        drawdown, max_drawdown, rolling_volatility)
 
@@ -23,11 +24,11 @@ for column, name in zip(st.columns(len(equities.columns)), equities.columns):
 
 view = st.radio("Show", ["Performance (rebased to 100)", "21-day volatility", "Drawdown"], horizontal=True)
 if view == "Performance (rebased to 100)":
-    st.line_chart((equities / equities.iloc[0] * 100).round(2))
+    st.altair_chart(line_chart((equities / equities.iloc[0] * 100).round(2), "Rebased to 100"))
 elif view == "21-day volatility":
-    st.line_chart(rolling_volatility(returns))
+    st.altair_chart(line_chart(rolling_volatility(returns), "21-day volatility"))
 else:
-    st.line_chart(drawdown(equities))
+    st.altair_chart(line_chart(drawdown(equities), "Drawdown"))
 
 summary = pd.DataFrame({
     "Annualised volatility": annualised_volatility(returns),
@@ -42,16 +43,16 @@ day = pd.Timestamp(chosen)
 
 curve = pd.DataFrame({"Yield (%)": curves.loc[day].values}, index=[1, 2, 5, 10, 30])
 curve.index.name = "Maturity (years)"
-st.line_chart(curve)
+st.altair_chart(line_chart(curve, "Yield (%)"))
 
 spread = curve_spread_bp(curves)
 c1, c2 = st.columns(2)
 c1.metric("10y − 2y spread", f"{spread.loc[day]:.0f} bp")
 c2.metric("Curve shape", "Normal" if spread.loc[day] >= 0 else "Inverted")
-st.line_chart(spread.rename("10y − 2y spread (bp)"))
+st.altair_chart(line_chart(spread.rename("10y − 2y spread"), "Spread (bp)"))
 
 # ---------- FX ----------
 st.header("FX rates")
 pair = st.selectbox("Currency pair", list(fx.columns))
-st.line_chart(fx[pair])
+st.altair_chart(line_chart(fx[pair], pair))
 
