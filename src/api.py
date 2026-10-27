@@ -171,6 +171,23 @@ def trade_xml(trade_id: str = Path(pattern=r"^T\d{5}$")):
                     media_type="application/xml")
 
 
+@app.get("/pipeline/last-run")
+def last_pipeline_run():
+    """When the data was last loaded, and by whom: a person, or the scheduled GitHub Actions job."""
+    with engine.connect() as conn:
+        if conn.execute(text("SELECT to_regclass('public.pipeline_runs')")).scalar() is None:
+            raise HTTPException(status_code=404, detail="No pipeline runs recorded yet")
+        run = conn.execute(text("""
+            SELECT loaded_at, triggered_by, valuations_loaded
+            FROM pipeline_runs
+            ORDER BY run_id DESC
+            LIMIT 1
+        """)).mappings().first()
+    if run is None:
+        raise HTTPException(status_code=404, detail="No pipeline runs recorded yet")
+    return dict(run)
+
+
 @app.get("/bond-price")
 def price_bond(coupon_rate: float = Query(..., ge=0, le=1),
                years: int = Query(..., ge=1, le=100),

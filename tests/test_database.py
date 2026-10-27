@@ -61,3 +61,11 @@ def test_database_pnl_reconciles_with_csv(engine):
     with engine.connect() as conn:
         db_total = conn.execute(text("SELECT SUM(pnl) FROM fact_valuations")).scalar()
     assert float(db_total) == pytest.approx(csv_total, abs=0.01)
+
+
+def test_every_load_is_logged(engine):
+    with engine.connect() as conn:
+        run = conn.execute(text("SELECT triggered_by, valuations_loaded FROM pipeline_runs "
+                                "ORDER BY run_id DESC LIMIT 1")).one()
+    assert run.valuations_loaded == 7403
+    assert run.triggered_by

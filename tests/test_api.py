@@ -182,3 +182,11 @@ def test_market_prices_needs_a_filter(client):
 
 def test_unknown_asset_class_returns_400(client):
     assert client.get("/market-prices", params={"asset_class": "CRYPTO"}).status_code == 400
+
+
+def test_last_pipeline_run(client):
+    response = client.get("/pipeline/last-run")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valuations_loaded"] == 7403
+    assert {"loaded_at", "triggered_by"} <= body.keys()

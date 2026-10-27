@@ -46,3 +46,11 @@ CREATE TABLE fact_valuations (
     status       TEXT NOT NULL CHECK (status IN ('LIVE', 'MATURED')),
     PRIMARY KEY (date, trade_id)
 );
+
+-- One row per load. Never dropped, so it keeps the history of every refresh.
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+    run_id            SERIAL      PRIMARY KEY,
+    loaded_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    triggered_by      TEXT        NOT NULL,
+    valuations_loaded INT         NOT NULL CHECK (valuations_loaded > 0)
+);
