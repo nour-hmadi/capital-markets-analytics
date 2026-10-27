@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from app_data import load_market      # import first: it makes src/ importable
+from charts import line_chart
 from analytics import pip_size
 from pricing import bond_price, dv01, fx_forward, macaulay_duration, modified_duration
 from trades import DEPOSIT_RATES
@@ -41,7 +42,7 @@ with bond_tab:
     curve = pd.DataFrame({"Price (per 100 face)": [bond_price(100, coupon, years, y / 100) for y in yields]},
                          index=yields)
     curve.index.name = "Yield (%)"
-    st.line_chart(curve)
+    st.altair_chart(line_chart(curve, "Price (per 100 face)"))
     st.caption("Price falls as yield rises, and the line bends (convexity). "
                "Longer maturities make it steeper: try 30 years.")
 

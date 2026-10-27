@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 
 from app_data import API_URL, load_pnl_history, load_positions, load_risk, load_trade_xml
+from charts import bar_chart, line_chart
 
 st.set_page_config(page_title="Portfolio", page_icon="💼", layout="wide")
 st.title("Portfolio: P&L and risk")
@@ -36,12 +37,12 @@ st.caption(f"As of {pd.Timestamp(as_of):%d %B %Y} · served live by the API: {AP
 
 # ---------- P&L ----------
 st.subheader("P&L over time, by desk")
-st.line_chart(history.round(0))
+st.altair_chart(line_chart(history.round(0), "P&L (USD)"))
 
 left, right = st.columns(2)
 with left:
     st.subheader("P&L by desk, latest")
-    st.bar_chart(positions.groupby("desk")["pnl_usd"].sum().round(0))
+    st.altair_chart(bar_chart(positions.groupby("desk")["pnl_usd"].sum().round(0), "P&L (USD)"))
 
 with right:
     st.subheader("Rates risk by bond")
@@ -49,7 +50,8 @@ with right:
         st.info("Select the RATES desk to see interest rate risk.")
     else:
         bonds = pd.DataFrame(risk["bonds"]).set_index("security")
-        st.bar_chart(bonds["dv01_usd"].round(0))
+        bonds = bonds.sort_index(key=lambda s: s.str.extract(r"(\d+)")[0].astype(int))
+        st.altair_chart(bar_chart(bonds["dv01_usd"].round(0), "DV01 (USD per bp)"))
         st.metric("P&L if all rates rise 10 bp", usd(risk["pnl_if_rates_up_10bp_usd"]))
 
 # ---------- Winners and losers (pnl second, so it stays visible on phones) ----------
