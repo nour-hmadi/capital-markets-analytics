@@ -69,3 +69,15 @@ def test_every_load_is_logged(engine):
                                 "ORDER BY run_id DESC LIMIT 1")).one()
     assert run.valuations_loaded == 7403
     assert run.triggered_by
+
+
+def test_desk_trade_ids_start_after_the_official_book(engine):
+    with engine.connect() as conn:
+        trade_id = conn.execute(text("""
+            INSERT INTO desk_trades (trade_date, desk, instrument_type, underlying, direction,
+                                     quantity, trade_price, counterparty)
+            VALUES ('2025-03-03', 'EQUITY', 'EQUITY_INDEX', 'INDEX_US', 'BUY', 100, 5000, 'Alpha Bank')
+            RETURNING trade_id
+        """)).scalar()
+        conn.rollback()                                   # test only: nothing is kept
+    assert trade_id >= "T90001"
