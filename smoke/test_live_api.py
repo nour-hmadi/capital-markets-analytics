@@ -36,3 +36,7 @@ def test_positions_reconcile_with_desk_pnl():
     positions = get("/positions")["positions"]
     total = get("/pnl")["total_pnl"]
     assert abs(sum(p["pnl_usd"] for p in positions) - total) < 1
+
+
+def test_trade_desk_is_online():
+    assert isinstance(get("/desk/trades"), list)
