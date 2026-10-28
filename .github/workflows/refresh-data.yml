@@ -44,5 +44,8 @@ jobs:
       - name: Build and test the dbt models in Neon
         run: .dbt-venv/bin/dbt build --project-dir dbt --profiles-dir dbt
 
+      - name: Clear the guest trades on the trade desk
+        run: python src/reset_desk.py
+
       - name: Smoke test the live API
         run: python -m pytest smoke -v

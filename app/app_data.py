@@ -90,3 +90,25 @@ def load_last_run():
         return _fetch("/pipeline/last-run")
     except Exception:
         return None
+
+
+def send(method, path, body=None, as_text=False):
+    """Create, change or delete through the API, or read data that changes often. Never cached.
+
+    Returns (True, result) or (False, a message to show the user).
+    """
+    try:
+        response = requests.request(method, f"{API_URL}{path}", json=body, timeout=TIMEOUT_SECONDS)
+    except requests.RequestException as error:
+        return False, f"The API is not reachable right now ({error.__class__.__name__}). Please try again."
+    if response.status_code >= 400:
+        try:
+            detail = response.json().get("detail")
+        except ValueError:
+            detail = None
+        if isinstance(detail, list):                          # errors from the API's request model
+            detail = "; ".join(item.get("msg", "") for item in detail)
+        return False, detail or f"The API answered {response.status_code}."
+    if as_text:
+        return True, response.text
+    return True, response.json() if response.content else None
