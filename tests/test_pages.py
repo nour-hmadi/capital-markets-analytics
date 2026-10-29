@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 APP = Path(__file__).resolve().parent.parent / "app"
 PAGES = ["Home.py", "pages/1_Market.py", "pages/2_Portfolio.py", "pages/3_Pricing.py",
-         "pages/4_Trade_desk.py"]
+         "pages/4_Trade_desk.py", "pages/5_Privacy_and_terms.py"]
 
 
 @pytest.fixture
