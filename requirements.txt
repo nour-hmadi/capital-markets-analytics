@@ -11,5 +11,7 @@ SQLAlchemy==2.0.49
 streamlit==1.66.1
 uvicorn==0.44.0
 requests==2.32.2
+# Sign in with Google (st.login) needs Authlib
+Authlib==1.9.1
 # pyarrow comes with streamlit; version 26+ needs NumPy 2, and we pin NumPy 1.26
 pyarrow==14.0.2

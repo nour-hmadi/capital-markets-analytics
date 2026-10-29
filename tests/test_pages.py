@@ -10,6 +10,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 import app_data
+import desk_api
 from desk_api import engine
 from sqlalchemy import text
 
@@ -29,8 +30,9 @@ def api_in_process(client, monkeypatch):
     monkeypatch.setattr(app_data, "api", call)
     monkeypatch.setattr(app_data, "_fetch", call)
 
-    def send(method, path, body=None, as_text=False):
-        response = client.request(method, path, json=body)
+    def send(method, path, body=None, as_text=False, user=None):
+        headers = {"X-User-Email": user, "X-App-Key": "page-test-key"} if user else None
+        response = client.request(method, path, json=body, headers=headers)
         if response.status_code >= 400:
             return False, str(response.json().get("detail"))
         if as_text:
@@ -38,6 +40,7 @@ def api_in_process(client, monkeypatch):
         return True, response.json() if response.content else None
 
     monkeypatch.setattr(app_data, "send", send)
+    monkeypatch.setattr(desk_api, "APP_KEY", "page-test-key")
     monkeypatch.setattr(app_data, "wake_backend", lambda: None)   # tests never call the internet
 
 
@@ -62,3 +65,28 @@ def test_book_change_and_delete_a_trade_from_the_page(api_in_process):
     next(b for b in at.button if b.label == "Delete").click().run()
     assert any("Deleted T9" in message.value for message in at.success)
     assert any("No trades yet" in info.value for info in at.info)
+
+
+def test_a_guest_sees_the_sign_in_button(api_in_process, monkeypatch):
+    monkeypatch.setattr(app_data, "sign_in_ready", lambda: True)
+    at = AppTest.from_file(str(APP / "pages/4_Trade_desk.py"), default_timeout=30).run()
+    assert not at.exception, at.exception[0].value
+    assert any(b.label == "Sign in with Google" for b in at.button)
+
+
+def test_a_signed_in_user_books_under_their_email(api_in_process, monkeypatch):
+    """Signed in with Google: the trade is saved under the user's email, and guests don't see it."""
+    monkeypatch.setattr(app_data, "sign_in_ready", lambda: True)
+    monkeypatch.setattr(app_data, "signed_in_email", lambda: "page-test@example.com")
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM desk_trades WHERE owner = 'page-test@example.com'"))
+    at = AppTest.from_file(str(APP / "pages/4_Trade_desk.py"), default_timeout=30).run()
+    assert any("page-test@example.com" in m.value for m in at.markdown)
+    assert any(b.label == "Log out" for b in at.button)
+
+    next(b for b in at.button if b.label == "Book trade").click().run()
+    trade_id = next(m.value for m in at.success if "Booked T9" in m.value).split()[1].rstrip(":")
+    with engine.begin() as conn:
+        owner = conn.execute(text("SELECT owner FROM desk_trades WHERE trade_id = :id"), {"id": trade_id}).scalar()
+        conn.execute(text("DELETE FROM desk_trades WHERE owner = 'page-test@example.com'"))
+    assert owner == "page-test@example.com"
