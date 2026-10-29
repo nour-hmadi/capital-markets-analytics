@@ -1,12 +1,16 @@
 """Trade desk endpoints: visitors create, read, update and delete their own trades.
 
 Desk trades live in desk_trades (IDs from T90001). The official book (dim_trade) is read-only.
+Visitors are guests, unless the Streamlit app vouches for a user signed in with Google: it sends
+the user's email together with a key that only the app and the API know.
 """
+import os
+import secrets
 from datetime import date as Date
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from fastapi.responses import Response
 from lxml import etree
 from pydantic import BaseModel, Field
@@ -19,7 +23,7 @@ from load_db import DATABASE_URL
 router = APIRouter(prefix="/desk/trades", tags=["trade desk"])
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SCHEMA = load_schema()
-OWNER = "guest"                      # Sign in with Google will replace this with the user's email
+APP_KEY = os.environ.get("DESK_APP_KEY", "")     # shared with the Streamlit app; never in the code
 MAX_TRADES = 20
 COLUMNS = ("trade_id, trade_date, desk, instrument_type, underlying, direction, quantity, trade_price, "
            "coupon_rate, maturity_years, spot_at_trade, maturity_date, counterparty")
@@ -70,6 +74,18 @@ def with_valuation(row, market):
     return {**shown, **desk.value_today(trade, market)}
 
 
+def current_owner(x_user_email: Optional[str] = Header(None), x_app_key: Optional[str] = Header(None)):
+    """Whose trades: "guest" by default, or the signed-in user's email when the app vouches for it."""
+    if x_user_email is None:
+        return "guest"
+    if not (APP_KEY and x_app_key and secrets.compare_digest(x_app_key.encode(), APP_KEY.encode())):
+        raise HTTPException(status_code=401, detail="Only the app can act for a signed-in user")
+    return x_user_email.strip().lower()
+
+
+Owner = Annotated[str, Depends(current_owner)]
+
+
 def check_editable(trade_id):
     if trade_id < "T90001":
         raise HTTPException(status_code=403, detail="The official book is read-only: only desk trades "
@@ -77,26 +93,26 @@ def check_editable(trade_id):
 
 
 @router.get("")
-def list_trades():
+def list_trades(owner: Owner):
     market = market_data()
     with engine.connect() as conn:
         rows = conn.execute(text(f"SELECT {COLUMNS} FROM desk_trades WHERE owner = :owner ORDER BY trade_id"),
-                            {"owner": OWNER}).mappings().all()
+                            {"owner": owner}).mappings().all()
     return [with_valuation(row, market) for row in rows]
 
 
 @router.post("", status_code=201)
-def create_trade(new: NewTrade):
+def create_trade(new: NewTrade, owner: Owner):
     market = market_data()
     try:
         trade = desk.book_trade(market=market, **new.model_dump())
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
-    values = {**trade, "owner": OWNER, "trade_date": trade["trade_date"].date(),
+    values = {**trade, "owner": owner, "trade_date": trade["trade_date"].date(),
               "maturity_date": trade["maturity_date"].date() if trade["maturity_date"] is not None else None}
     with engine.begin() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM desk_trades WHERE owner = :owner"),
-                             {"owner": OWNER}).scalar()
+                             {"owner": owner}).scalar()
         if count >= MAX_TRADES:
             raise HTTPException(status_code=409, detail=f"Limit of {MAX_TRADES} trades reached: delete one first")
         row = conn.execute(text(f"""
@@ -111,35 +127,35 @@ def create_trade(new: NewTrade):
 
 
 @router.put("/{trade_id}")
-def change_trade(change: TradeChange, trade_id: str = TradeId):
+def change_trade(change: TradeChange, owner: Owner, trade_id: str = TradeId):
     check_editable(trade_id)
     with engine.begin() as conn:
         row = conn.execute(text(f"""
             UPDATE desk_trades SET direction = :direction, quantity = :quantity
             WHERE trade_id = :trade_id AND owner = :owner
             RETURNING {COLUMNS}
-        """), {**change.model_dump(), "trade_id": trade_id, "owner": OWNER}).mappings().first()
+        """), {**change.model_dump(), "trade_id": trade_id, "owner": owner}).mappings().first()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Desk trade {trade_id} not found")
     return with_valuation(row, market_data())
 
 
 @router.delete("/{trade_id}", status_code=204)
-def delete_trade(trade_id: str = TradeId):
+def delete_trade(owner: Owner, trade_id: str = TradeId):
     check_editable(trade_id)
     with engine.begin() as conn:
         deleted = conn.execute(text("DELETE FROM desk_trades WHERE trade_id = :trade_id AND owner = :owner"),
-                               {"trade_id": trade_id, "owner": OWNER}).rowcount
+                               {"trade_id": trade_id, "owner": owner}).rowcount
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Desk trade {trade_id} not found")
     return Response(status_code=204)
 
 
 @router.get("/{trade_id}/xml")
-def trade_xml(trade_id: str = TradeId):
+def trade_xml(owner: Owner, trade_id: str = TradeId):
     with engine.connect() as conn:
         row = conn.execute(text(f"SELECT {COLUMNS} FROM desk_trades WHERE trade_id = :trade_id AND owner = :owner"),
-                           {"trade_id": trade_id, "owner": OWNER}).mappings().first()
+                           {"trade_id": trade_id, "owner": owner}).mappings().first()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Desk trade {trade_id} not found")
     root = etree.Element("trades")

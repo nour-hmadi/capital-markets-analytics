@@ -92,13 +92,36 @@ def load_last_run():
         return None
 
 
-def send(method, path, body=None, as_text=False):
+def secret(name):
+    """A value from the app's secrets, or None when there is no secrets file (tests, CI)."""
+    try:
+        return st.secrets.get(name)
+    except Exception:
+        return None
+
+
+def sign_in_ready():
+    """True when the Google sign-in keys are configured ([auth] in the secrets)."""
+    return secret("auth") is not None
+
+
+def signed_in_email():
+    """The visitor's Google email, or None for a guest."""
+    if not sign_in_ready() or not st.user.get("is_logged_in"):
+        return None
+    return st.user.get("email")
+
+
+def send(method, path, body=None, as_text=False, user=None):
     """Create, change or delete through the API, or read data that changes often. Never cached.
 
+    For a signed-in user, the app vouches for their email with the key it shares with the API.
     Returns (True, result) or (False, a message to show the user).
     """
+    headers = {"X-User-Email": user, "X-App-Key": secret("DESK_APP_KEY") or ""} if user else None
     try:
-        response = requests.request(method, f"{API_URL}{path}", json=body, timeout=TIMEOUT_SECONDS)
+        response = requests.request(method, f"{API_URL}{path}", json=body, headers=headers,
+                                    timeout=TIMEOUT_SECONDS)
     except requests.RequestException as error:
         return False, f"The API is not reachable right now ({error.__class__.__name__}). Please try again."
     if response.status_code >= 400:

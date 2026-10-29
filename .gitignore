@@ -8,3 +8,4 @@ dbt/logs/
 .dbt-venv/
 dbt/.user.yml
 .env
+.streamlit/secrets.toml

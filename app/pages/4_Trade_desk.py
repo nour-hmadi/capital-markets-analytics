@@ -3,14 +3,25 @@ import datetime as dt
 import pandas as pd
 import streamlit as st
 
-from app_data import send                 # import first: it makes src/ importable
+from app_data import send, sign_in_ready, signed_in_email      # import first: it makes src/ importable
 from desk import INSTRUMENTS, MAX_QUANTITY
 from trades import COUNTERPARTIES, FX_TENORS_MONTHS
 
 st.set_page_config(page_title="Trade desk", page_icon="🧾", layout="wide")
 st.title("Trade desk")
 st.caption("Book a trade at the market price of any trading day in 2025 and see its P&L on the last day. "
-           "Your trades are kept apart from the official book, limited to 20, and cleared every morning.")
+           "Your trades are kept apart from the official book, up to 20 per person. "
+           "Guest trades are cleared every morning: sign in with Google to keep yours.")
+
+user = signed_in_email()                              # None for a guest
+if user or sign_in_ready():
+    left, right = st.columns([4, 1], vertical_alignment="center")
+    if user:
+        left.markdown(f"Signed in as **{user}**")
+        right.button("Log out", on_click=st.logout)
+    else:
+        left.markdown("You are trading as a **guest**.")
+        right.button("Sign in with Google", on_click=st.login, type="primary")
 
 LABELS = {"EQUITY_INDEX": "Equity index", "BOND": "Government bond", "FX_FORWARD": "FX forward"}
 
@@ -43,7 +54,7 @@ if booked:
     ok, result = send("POST", "/desk/trades", {
         "instrument_type": instrument, "underlying": underlying, "direction": direction,
         "quantity": int(quantity), "trade_date": trade_date.isoformat(),
-        "counterparty": counterparty, "tenor_months": tenor})
+        "counterparty": counterparty, "tenor_months": tenor}, user=user)
     if ok:
         st.session_state["flash"] = (f"Booked {result['trade_id']}: checked ✓ priced at that day's market "
                                      f"({result['trade_price']:,}) ✓ saved ✓ valued ✓ · P&L {usd(result['pnl'])}")
@@ -53,7 +64,7 @@ if booked:
 # ---------- Your trades ----------
 st.subheader("Your trades")
 with st.spinner("Loading from the API… (the free backend can take up to a minute to wake up)"):
-    ok, trades = send("GET", "/desk/trades")
+    ok, trades = send("GET", "/desk/trades", user=user)
 if not ok:
     st.error(trades)
     st.stop()
@@ -76,20 +87,21 @@ new_direction = c1.radio("New direction", ["BUY", "SELL"], index=["BUY", "SELL"]
 new_quantity = c2.number_input("New quantity", min_value=1, max_value=MAX_QUANTITY,
                                value=int(row["quantity"]), key=f"quantity_{chosen}")
 if c3.button("Update"):
-    ok, result = send("PUT", f"/desk/trades/{chosen}", {"direction": new_direction, "quantity": int(new_quantity)})
+    ok, result = send("PUT", f"/desk/trades/{chosen}", {"direction": new_direction, "quantity": int(new_quantity)},
+                      user=user)
     if ok:
         st.session_state["flash"] = f"Updated {chosen} · P&L {usd(result['pnl'])}"
         st.rerun()
     st.error(result)
 if c4.button("Delete"):
-    ok, result = send("DELETE", f"/desk/trades/{chosen}")
+    ok, result = send("DELETE", f"/desk/trades/{chosen}", user=user)
     if ok:
         st.session_state["flash"] = f"Deleted {chosen}"
         st.rerun()
     st.error(result)
 
 with st.expander(f"Trade message (XML) for {chosen}"):
-    ok, xml = send("GET", f"/desk/trades/{chosen}/xml", as_text=True)
+    ok, xml = send("GET", f"/desk/trades/{chosen}/xml", as_text=True, user=user)
     if ok:
         st.code(xml, language="xml")
     else:
