@@ -17,7 +17,7 @@ st.markdown(
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Trades in the book", "60", border=True)
 c2.metric("Daily valuations", "7,403", border=True)
-c3.metric("Python tests", "165", border=True)
+c3.metric("Python tests", "215", border=True)
 c4.metric("dbt tests", "34", border=True)
 st.markdown("[![Tests](https://github.com/nour-hmadi/capital-markets-analytics/actions/workflows/tests.yml/badge.svg)]"
             "(https://github.com/nour-hmadi/capital-markets-analytics/actions)")
