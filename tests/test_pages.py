@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 APP = Path(__file__).resolve().parent.parent / "app"
 PAGES = ["Home.py", "pages/1_Market.py", "pages/2_Portfolio.py", "pages/3_Pricing.py",
-         "pages/4_Trade_desk.py", "pages/5_Privacy_and_terms.py"]
+         "pages/4_Trade_desk.py", "pages/5_Learn.py", "pages/6_Privacy_and_terms.py"]
 
 
 @pytest.fixture
@@ -90,3 +90,11 @@ def test_a_signed_in_user_books_under_their_email(api_in_process, monkeypatch):
         owner = conn.execute(text("SELECT owner FROM desk_trades WHERE trade_id = :id"), {"id": trade_id}).scalar()
         conn.execute(text("DELETE FROM desk_trades WHERE owner = 'page-test@example.com'"))
     assert owner == "page-test@example.com"
+
+
+def test_a_quiz_answer_gets_feedback():
+    at = AppTest.from_file(str(APP / "pages/5_Learn.py"), default_timeout=30).run()
+    at.radio[0].set_value("B").run()                     # Equities, question 1: the right answer
+    assert any(message.value.startswith("Correct") for message in at.success)
+    at.radio[1].set_value("A").run()                     # question 2: a wrong answer
+    assert any(message.value.startswith("Not quite") for message in at.error)
