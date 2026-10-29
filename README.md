@@ -1,136 +1,130 @@
-# Capital Markets Analytics Dashboard
+# Capital Markets Analytics
+
 ![Tests](https://github.com/nour-hmadi/capital-markets-analytics/actions/workflows/tests.yml/badge.svg)
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://capital-markets-analytics.streamlit.app)
-A self-learning data project to understand how capital markets work: simulated market data, a 60-trade book valued daily (P&L, DV01), a tested data pipeline (PostgreSQL, dbt, CI) and a live interactive app.
 
-> **Status: in progress.** See the roadmap below.
+An end-to-end capital markets data platform: simulated market data, a 60-trade book valued every day
+(P&L, DV01), a tested data pipeline (PostgreSQL, dbt, CI/CD), a REST API, and a live app where visitors
+book their own trades.
 
-## Why this project
+- **Live app:** [capital-markets-analytics.streamlit.app](https://capital-markets-analytics.streamlit.app)
+- **API docs:** [capital-markets-api.onrender.com/docs](https://capital-markets-api.onrender.com/docs)
+  (free hosting: the first request can take up to a minute while the API wakes up)
 
-I'm building this project to learn about capital markets hands-on. The focus is not the code itself, but what the data shows: how stock prices, government bond yields and exchange rates move, and how they relate to each other. Python, SQL and Power BI are the tools I use to explore these questions.
+All market data is synthetic, generated with a fixed seed. I built this project to learn how capital
+markets work, and to practise the skills a test or data engineer uses on a trading platform.
 
-## What are capital markets?
+## What the app shows
 
-Capital markets are where governments, companies and investors raise and trade money through financial products. This project covers three of the main ones:
+| Page | What you can do |
+|---|---|
+| **Market** | Equity indices, the yield curve on any date in 2025, FX rates and the 10y − 2y spread |
+| **Portfolio** | P&L by desk over time, positions, and rate risk (DV01) by bond |
+| **Pricing** | Price a bond or an FX forward yourself, and see the price–yield curve |
+| **Trade desk** | Book, change and delete your own trades, priced at any 2025 market, and see each trade's XML message |
+| **Learn** | The trading basics behind each page, with short quizzes |
 
-| Asset class | What it is | What the data shows |
-|---|---|---|
-| **Equities (stocks)** | Shares of ownership in companies | Stock index prices and daily returns (%) |
-| **Rates (government bonds)** | Loans to a government; the *yield* is the interest rate it pays | Bond yields and their daily change in basis points (1 bp = 0.01%) |
-| **FX (foreign exchange)** | The price of one currency in another | Exchange rates such as EUR/USD, and their daily changes |
+Visitors can trade as guests (their trades are cleared every morning) or **sign in with Google** to keep them.
 
-## Questions this dashboard will answer
-
-- How much did major stock markets gain or lose over time?
-- How do government bond yields differ across maturities (the **yield curve**)?
-- How do major currencies move against the US dollar?
-- When stock markets fall, what happens to bonds and currencies?
-
-## How it works (planned)
-
-```
-Public REST APIs  →  Python (collect & clean)  →  PostgreSQL (store)  →  Power BI (visualize)
-                          ↑
-          pytest data-quality checks, run automatically with GitHub Actions
-```
-
-## Roadmap
-
-- [x] Define the project goals and scope
-- [ ] Day 1: capital markets basics
-- [ ] Explore market data REST APIs and JSON in Postman
-- [ ] Collect equity, bond yield and FX data with Python
-- [ ] Clean the data and calculate daily returns and basis-point changes
-- [ ] Add pytest data-quality checks and GitHub Actions (CI)
-- [ ] Store the data in PostgreSQL
-- [ ] Read ECB exchange rates published in XML
-- [ ] Build the Power BI dashboard
-- [ ] Write up the key insights
-
-## Tools
-
-Python · pandas · REST APIs · JSON · XML · Postman · SQL · PostgreSQL · Unix · Power BI · pytest · GitHub Actions
-## Project status
-
-- ✅ Day 1: capital markets basics, equity returns, bonds and yields, yield curve, FX quotes, compound interest
-- ✅ Day 2: bond pricing, duration and DV01, FX cross rates and forwards
-- ✅ Synthetic market data generator (equities, yield curves, FX), reproducible with a fixed seed
-- ✅ Pricing module with 30 pytest tests, run automatically by GitHub Actions
-- ⏳ Day 3: derivatives (forwards, futures, options, swaps)
-- ⏳ Day 4: trade lifecycle (front, middle and back office) and where Murex MX.3 fits
-
-## Project structure
+## Architecture
 
 ```
-notebooks/   learning notebooks, one per day
-src/         generate_data.py (synthetic data), pricing.py (bonds and FX)
-tests/       pricing tests and data validation tests
-data/        generated CSV files
+generate_data.py ─► trades.py ─► valuation.py ─► load_db.py ─► PostgreSQL (Neon) ─► dbt
+ market data         60 trades     7,403 daily      raw tables     cloud database     staging → intermediate → marts
+                                   valuations       + run log
+                                                                                        │
+     Streamlit app (Streamlit Cloud)  ◄──────  REST API (FastAPI on Render)  ◄──────────┘
+     7 pages, Google sign-in                   15 endpoints, XML trade messages
 ```
 
-## How to run
+Data flows in one direction: the pipeline loads the database, dbt builds the tested marts, the API serves
+them, and the app only talks to the API.
 
-```bash
-pip install -r requirements.txt
-python src/generate_data.py
-python -m pytest -v
-```
----
+## Key numbers
 
-*Author: Nour Hmadi · [LinkedIn](https://www.linkedin.com/in/nour-hmadi-b86a29438) · [GitHub](https://github.com/nour-hmadi)*
+| | |
+|---|---|
+| Trade book | 60 trades on 3 desks (Equity, Rates, FX), valued every trading day: 7,403 valuations |
+| Python tests | 215 (unit, data, database, API, XML, page and regression tests) |
+| dbt | 9 models in 3 layers, 34 tests |
+| API | 15 endpoints, documented with OpenAPI |
+
+## How it is tested and deployed
+
+- **Every pull request** runs in GitHub Actions: a fresh PostgreSQL container is loaded, `dbt build` runs
+  the models and their tests, then all Python tests run. The `main` branch is protected: a pull request
+  and green tests are required to merge.
+- **Merging to `main`** redeploys the API (Render) and the app (Streamlit Community Cloud).
+- **Every weekday morning** a scheduled workflow refreshes the cloud database: it runs the pipeline,
+  rebuilds the dbt models, clears the guest trades and smoke-tests the live API. Each load is logged,
+  and the Portfolio page shows when the data was last refreshed and by whom.
+- **Page tests** open every page with Streamlit's AppTest against the real API and database, so a test
+  fails if any link breaks: page → API → database.
+- **The page tests caught a real deployment bug:** a newer `pyarrow` that crashed the cloud app. It is now
+  pinned, and the tests run on every change.
+
+## Trade desk and Google sign-in
+
+- Visitors' trades live in their own table, `desk_trades` (IDs from T90001). The official book is
+  read-only: changing it returns **403**.
+- The API validates every trade (**400** for an invalid trade, **422** for a malformed request) and
+  limits each person to 20 trades (**409**).
+- Sign-in uses Google (OpenID Connect) through Streamlit. The app sends the user's email to the API
+  together with a secret key that only the app and the API know, so nobody can act for another user by
+  calling the API directly (**401**).
+
 ## XML trade messages
 
-Banks keep market data and trades in databases and tables. XML is used when one system **sends** a trade to another, for example from the trading platform to settlement. Industry standards such as **FpML** are XML-based.
-
-This project follows the same design: the CSV files and the PostgreSQL database are the **source of truth**, and `src/export_xml.py` generates XML trade messages from them when needed.
+Banks keep trades in databases; XML is how one system **sends** a trade to another, for example from the
+trading platform to settlement. Here the database is the source of truth, and XML messages are generated
+from it on demand.
 
 | File | Purpose |
 |---|---|
-| `schemas/trade.xsd` | the rules for a trade message: required fields, allowed values (BUY/SELL, desks), formats (trade IDs, dates), positive quantities and prices, exactly one product block, unique trade IDs |
-| `schemas/sample_trades.xml` | a hand-written example message |
-| `src/export_xml.py` | converts `data/trades.csv` into `data/trades.xml`, validating every message before saving |
-| `tests/test_xml.py` | 15 tests (below) |
-
-The conversion demonstrates four testing skills:
-
-- **Validation:** every generated message passes the XSD
-- **Negative tests:** 10 deliberately broken messages are rejected (invalid direction, negative quantity, missing field, duplicate trade ID…)
-- **Round trip:** CSV → XML → table returns exactly the original data
-- **Business rules beyond the schema:** an XSD can't check that the EQUITY desk books only equity trades, so a separate check covers it
-
+| `schemas/trade.xsd` | the rules for a trade message: required fields, allowed values, formats, unique trade IDs |
+| `src/export_xml.py` | converts trades into XML, validating every message before it is saved or sent |
+| `tests/test_xml.py` | validation, 10 deliberately broken messages, a CSV → XML → CSV round trip, and business rules the XSD can't express |
 
 ## dbt transformation layer
-
-The Python pipeline loads the raw tables into PostgreSQL. **dbt** then transforms them inside the database into tested, documented models:
 
 ```
 public                  raw tables, loaded by src/load_db.py
 analytics_staging       stg_* views: one clean model per raw table
 analytics_intermediate  int_valuations_enriched: valuations joined to trades
-analytics_marts         fct_daily_pnl_by_desk: incremental, with an enforced contract
-                        fct_daily_rates_risk: DV01 per bond and a +10 bp shock scenario
+analytics_marts         fct_daily_pnl_by_desk (incremental, enforced contract), fct_positions,
+                        fct_daily_rates_risk (DV01 and a +10 bp shock), fct_market_prices
 ```
 
-| Practice | How it's used here |
-|---|---|
-| Layers and naming | staging → intermediate → marts, with `stg_`, `int_` and `fct_` prefixes |
-| Materializations | staging and intermediate as views, marts as tables, daily P&L as an incremental model |
-| Model contract | the P&L mart's column names and types are enforced at build time |
-| Tests | 24 generic and singular tests, including a reconciliation of the mart against trade-level valuations |
-| Macro | `rate_shock_pnl`: one reusable formula for the DV01 shock |
-| Docs and lineage | generated with `dbt docs` |
-| CI | `dbt build` runs on every pull request against a PostgreSQL service container, with pinned dbt versions in a separate environment |
+Generic and singular tests include reconciliations: the desk P&L mart must equal the sum of trade-level
+valuations, and positions must reconcile with desk P&L.
 
-### Run it locally
+## Run it locally
 
 ```bash
-python -m venv ~/venvs/dbt
-~/venvs/dbt/bin/pip install -r requirements-dbt.txt
-python src/load_db.py
-cd dbt
-~/venvs/dbt/bin/dbt build --profiles-dir .
-~/venvs/dbt/bin/dbt docs generate --profiles-dir .
-~/venvs/dbt/bin/dbt docs serve --profiles-dir . --port 8081
+pip install -r requirements.txt
+python src/pipeline.py                     # generate data, book and value trades, load PostgreSQL
+python -m venv .dbt-venv && .dbt-venv/bin/pip install -r requirements-dbt.txt
+.dbt-venv/bin/dbt build --project-dir dbt --profiles-dir dbt
+python -m pytest
+
+uvicorn api:app --app-dir src --port 8000             # API on http://localhost:8000/docs
+API_URL=http://localhost:8000 streamlit run app/Home.py
 ```
 
-**Known limitation:** the market data is staged and tested, but no mart uses it yet.
+## Project structure
+
+```
+src/          data generation, pricing, valuation, pipeline, API (api.py, desk_api.py)
+app/          Streamlit app: Home and pages/
+dbt/          dbt models, tests and macros
+learn/        the Learn page's lessons and quizzes, one Markdown file per topic
+schemas/      XSD for trade messages
+sql/          database schema
+tests/        pytest suite;  smoke/  tests against the live API
+notebooks/    my learning notebooks (capital markets basics, bonds and FX)
+.github/      CI and the scheduled data refresh
+```
+
+---
+
+*Author: Nour Hmadi · [LinkedIn](https://www.linkedin.com/in/nour-hmadi-b86a29438) · [GitHub](https://github.com/nour-hmadi)*
