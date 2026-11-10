@@ -28,7 +28,8 @@ st.markdown(
     "- **Portfolio:** P&L and risk by desk\n"
     "- **Pricing:** price a bond or an FX forward yourself\n"
     "- **Trade desk:** book, change and delete your own trades (sign in with Google to keep them)\n"
-    "- **Learn:** the trading basics behind each page, with short quizzes"
+    "- **Learn:** the trading basics behind each page, with short quizzes\n"
+    "- **Assistant:** ask questions in plain English, answered by an AI agent on Google Gemini"
 )
 
 st.info("All market data is synthetic (simulated with a fixed seed), not real market data.")
@@ -37,4 +38,4 @@ st.caption("The free backend sleeps when nobody uses it. Opening this page wakes
 st.markdown("Code, tests and documentation: "
             "[github.com/nour-hmadi/capital-markets-analytics]"
             "(https://github.com/nour-hmadi/capital-markets-analytics)")
-st.page_link("pages/6_Privacy_and_terms.py", label="Privacy and terms", icon="🔒")
+st.page_link("pages/7_Privacy_and_terms.py", label="Privacy and terms", icon="🔒")
