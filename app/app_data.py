@@ -115,10 +115,12 @@ def signed_in_email():
 def send(method, path, body=None, as_text=False, user=None):
     """Create, change or delete through the API, or read data that changes often. Never cached.
 
-    For a signed-in user, the app vouches for their email with the key it shares with the API.
+    The app always sends the key it shares with the API; for a signed-in user, it also vouches for their email.
     Returns (True, result) or (False, a message to show the user).
     """
-    headers = {"X-User-Email": user, "X-App-Key": secret("DESK_APP_KEY") or ""} if user else None
+    headers = {"X-App-Key": secret("DESK_APP_KEY") or ""}
+    if user:
+        headers["X-User-Email"] = user
     try:
         response = requests.request(method, f"{API_URL}{path}", json=body, headers=headers,
                                     timeout=TIMEOUT_SECONDS)
@@ -135,3 +137,9 @@ def send(method, path, body=None, as_text=False, user=None):
     if as_text:
         return True, response.text
     return True, response.json() if response.content else None
+
+
+def ask_database(method, path, body=None):
+    """For the assistant's tools: the API runs their SQL as a read-only user. Data, or an error the AI can read."""
+    ok, result = send(method, path, body)
+    return result if ok else f"Error: {result}"

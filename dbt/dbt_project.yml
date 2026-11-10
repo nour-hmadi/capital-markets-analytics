@@ -22,3 +22,5 @@ models:
     marts:
       +materialized: table
       +schema: marts
+      +persist_docs:              # copy each table's description into the database, for the AI assistant
+        relation: true
