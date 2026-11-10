@@ -27,6 +27,7 @@ APP_KEY = os.environ.get("DESK_APP_KEY", "")     # shared with the Streamlit app
 MAX_TRADES = 20
 COLUMNS = ("trade_id, trade_date, desk, instrument_type, underlying, direction, quantity, trade_price, "
            "coupon_rate, maturity_years, spot_at_trade, maturity_date, counterparty")
+SHOWN = COLUMNS + ", created_at"         # what the API returns: the trade, plus when the database saved it
 TradeId = Path(pattern=r"^T\d{5}$")
 
 
@@ -96,7 +97,7 @@ def check_editable(trade_id):
 def list_trades(owner: Owner):
     market = market_data()
     with engine.connect() as conn:
-        rows = conn.execute(text(f"SELECT {COLUMNS} FROM desk_trades WHERE owner = :owner ORDER BY trade_id"),
+        rows = conn.execute(text(f"SELECT {SHOWN} FROM desk_trades WHERE owner = :owner ORDER BY trade_id"),
                             {"owner": owner}).mappings().all()
     return [with_valuation(row, market) for row in rows]
 
@@ -121,7 +122,7 @@ def create_trade(new: NewTrade, owner: Owner):
                                      counterparty)
             VALUES (:owner, :trade_date, :desk, :instrument_type, :underlying, :direction, :quantity,
                     :trade_price, :coupon_rate, :maturity_years, :spot_at_trade, :maturity_date, :counterparty)
-            RETURNING {COLUMNS}
+            RETURNING {SHOWN}
         """), values).mappings().one()
     return with_valuation(row, market)
 
@@ -133,7 +134,7 @@ def change_trade(change: TradeChange, owner: Owner, trade_id: str = TradeId):
         row = conn.execute(text(f"""
             UPDATE desk_trades SET direction = :direction, quantity = :quantity
             WHERE trade_id = :trade_id AND owner = :owner
-            RETURNING {COLUMNS}
+            RETURNING {SHOWN}
         """), {**change.model_dump(), "trade_id": trade_id, "owner": owner}).mappings().first()
     if row is None:
         raise HTTPException(status_code=404, detail=f"Desk trade {trade_id} not found")

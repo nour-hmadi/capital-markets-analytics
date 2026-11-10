@@ -61,6 +61,8 @@ def test_book_change_and_delete_a_trade_from_the_page(api_in_process):
     next(b for b in at.button if b.label == "Book trade").click().run()
     assert any("Booked T9" in message.value for message in at.success)
     assert len(at.dataframe) == 1
+    assert any("Loaded live from the database" in caption.value for caption in at.caption)
+    assert "saved_at" in at.dataframe[0].value.columns
 
     next(b for b in at.button if b.label == "Delete").click().run()
     assert any("Deleted T9" in message.value for message in at.success)

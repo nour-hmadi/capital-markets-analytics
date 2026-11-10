@@ -1,4 +1,6 @@
 """Trade desk API: create, read, update and delete desk trades; the official book stays read-only."""
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from lxml import etree
 from sqlalchemy import text
@@ -32,6 +34,8 @@ def test_create_then_list(desk):
     trade = created.json()
     assert trade["trade_id"] >= "T90001"
     assert trade["valuation_date"] == "2025-12-18"
+    saved_at = datetime.fromisoformat(trade["created_at"])
+    assert datetime.now(timezone.utc) - saved_at < timedelta(minutes=5)      # saved by the database just now
     assert [t["trade_id"] for t in desk.get("/desk/trades").json()] == [trade["trade_id"]]
 
 
