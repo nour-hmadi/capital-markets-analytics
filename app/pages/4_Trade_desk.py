@@ -74,6 +74,12 @@ if not trades:
 
 table = pd.DataFrame(trades)
 columns = ["trade_id", "pnl", "underlying", "direction", "quantity", "trade_date", "trade_price", "dv01", "status"]
+if "created_at" in table:                  # the app and the API deploy separately: work with both versions
+    table["saved_at"] = pd.to_datetime(table["created_at"], utc=True).dt.strftime("%d %b %Y, %H:%M UTC")
+    columns.append("saved_at")
+where = f"under {user}" if user else "as a guest (cleared every morning)"
+st.caption(f"Loaded live from the database (PostgreSQL on Neon) through the API · "
+           f"{len(table)} trade{'s' if len(table) != 1 else ''} saved {where}")
 st.dataframe(table[columns].style.format({"pnl": usd, "dv01": usd, "quantity": "{:,.0f}"}), hide_index=True)
 st.metric("P&L of your trades", usd(table["pnl"].sum()))
 
