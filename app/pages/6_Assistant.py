@@ -6,7 +6,8 @@ from assistant import MAX_QUESTIONS, build_agent, reply
 st.set_page_config(page_title="Assistant", page_icon="💬", layout="wide")
 st.title("Assistant")
 st.caption("Ask about capital markets or the project's data, in plain English. An AI agent (LangChain) on "
-           "Google Gemini writes SQL, and the API runs it on the database as a read-only user.")
+           "Google Gemini explains concepts from the Learn notes, and writes SQL that the API runs on the "
+           "database as a read-only user.")
 st.caption("Questions are sent to Google Gemini, which may review them: please don't type personal information.")
 
 
@@ -26,13 +27,16 @@ def explain(error):
 
 
 def show(message):
-    """One chat bubble, with the SQL behind the answer when the assistant used the database."""
+    """One chat bubble, with what the answer is based on: the SQL it ran and the Learn lessons it read."""
     with st.chat_message(message["role"]):
         st.markdown(md(message["content"]))
         if message.get("sql"):
             with st.expander("The SQL behind this answer"):
                 for query in message["sql"]:
                     st.code(query, language="sql")
+        if message.get("lessons"):
+            with st.expander("From the Learn notes"):
+                st.markdown("\n".join(f"- {lesson}" for lesson in message["lessons"]))
 
 
 key = secret("GOOGLE_API_KEY")
@@ -60,10 +64,10 @@ if question:
     show(st.session_state.chat[-1])
     try:
         with st.spinner("Thinking… (the first question about the data can take up to a minute)"):
-            answer, queries = reply(st.session_state.agent, st.session_state.chat)
+            answer, queries, lessons = reply(st.session_state.agent, st.session_state.chat)
     except Exception as error:                      # drop the question, so the visitor can ask again
         st.session_state.chat.pop()
         st.error(explain(error))
         st.stop()
-    st.session_state.chat.append({"role": "assistant", "content": answer, "sql": queries})
+    st.session_state.chat.append({"role": "assistant", "content": answer, "sql": queries, "lessons": lessons})
     show(st.session_state.chat[-1])

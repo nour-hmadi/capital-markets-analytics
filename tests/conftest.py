@@ -1,6 +1,8 @@
 """Fixtures shared by several test files. pytest loads this file automatically."""
 import os
+import re
 import secrets
+import zlib
 from pathlib import Path
 
 import psycopg2
@@ -102,3 +104,21 @@ def tool_call():
     """A model's message asking to run a tool, as Gemini sends it."""
     return lambda name, **args: AIMessage(content="", tool_calls=[{"name": name, "args": args,
                                                                     "id": f"call-{name}"}])
+
+
+def word_vector(text, size=512):
+    """A fake embedding: one dimension per word, so texts that share words point in the same direction."""
+    vector = [0.0] * size
+    for word in re.findall(r"[a-z0-9]+", text.lower()):
+        vector[zlib.crc32(word.encode()) % size] += 1
+    return vector
+
+
+@pytest.fixture
+def fake_embed():
+    """Stands in for Gemini's embedding model: no internet, the same vectors every time. Records its calls."""
+    def embed(texts):
+        embed.calls.append(list(texts))
+        return [word_vector(text) for text in texts]
+    embed.calls = []
+    return embed

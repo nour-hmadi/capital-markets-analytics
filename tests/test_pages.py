@@ -13,6 +13,7 @@ import app_data
 import assistant
 import assistant_api
 import desk_api
+import notes
 from desk_api import engine
 from sqlalchemy import text
 
@@ -163,3 +164,18 @@ def test_the_assistant_page_shows_the_sql_behind_an_answer(api_in_process, reade
     assert at.code[0].value == PNL_SQL
     rows = model.received[-1][-1].content                 # what the database sent back to the model
     assert rows.index("FX") < rows.index("EQUITY") < rows.index("RATES")     # biggest loss first
+
+
+def test_the_assistant_page_shows_the_lessons_behind_an_answer(monkeypatch, fake_model, tool_call, fake_embed):
+    """For a concept: page -> agent -> search_notes -> the closest Learn paragraphs -> answer, with its lessons."""
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    model = fake_model(tool_call("search_notes", question="What is DV01?"), "DV01 is the rate risk of a bond.")
+    learn_notes = notes.Notes(notes.load_chunks(), fake_embed)
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None:
+                        original(model=model, database=database, notes=learn_notes))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("What is DV01?").run()
+    assert not at.exception, at.exception[0].value
+    assert at.expander[0].label == "From the Learn notes"
+    assert "Rate risk (DV01)" in at.expander[0].markdown[0].value
