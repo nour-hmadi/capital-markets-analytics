@@ -42,6 +42,9 @@ def connect():
     try:
         return psycopg2.connect(READER_URL.replace("postgresql+psycopg2://", "postgresql://", 1),
                                 connect_timeout=10)
+    except psycopg2.ProgrammingError:       # its message can quote the setting, password included: never show it
+        raise HTTPException(status_code=503, detail="The assistant's database setting (ASSISTANT_DATABASE_URL) "
+                                                    "is badly written")
     except psycopg2.OperationalError:
         raise HTTPException(status_code=503, detail="The database isn't reachable right now")
 
@@ -69,6 +72,8 @@ def tables():
                 ORDER BY table_name
             """, (SCHEMA,))
             rows = cur.fetchall()
+    except psycopg2.Error as error:
+        raise HTTPException(status_code=503, detail=f"The tables couldn't be listed: {explain(error)}")
     finally:
         conn.close()
     return [{"table": name, "description": description, "columns": columns}

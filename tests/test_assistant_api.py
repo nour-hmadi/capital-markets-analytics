@@ -119,3 +119,19 @@ def test_without_its_database_user_the_assistant_says_so(client, monkeypatch):
     monkeypatch.setattr(desk_api, "APP_KEY", KEY)
     response = client.post("/assistant/query", json={"sql": "SELECT 1"}, headers={"X-App-Key": KEY})
     assert response.status_code == 503
+
+
+@pytest.mark.parametrize("setting, message", [
+    ("postgresql://assistant_reader:secret-pw@localhost/db?sslmode=require&channel_binding=require=oops",
+     "badly written"),
+    ("postgresql://assistant_reader:secret-pw@localhost:1/db", "isn't reachable"),
+], ids=["badly written", "unreachable"])
+def test_a_broken_setting_gives_a_clear_message(client, monkeypatch, setting, message):
+    """Not a 500, and never the password: a clear message the AI can pass on."""
+    monkeypatch.setattr(assistant_api, "READER_URL", setting)
+    monkeypatch.setattr(desk_api, "APP_KEY", KEY)
+    for response in (client.get("/assistant/tables", headers={"X-App-Key": KEY}),
+                     client.post("/assistant/query", json={"sql": "SELECT 1"}, headers={"X-App-Key": KEY})):
+        assert response.status_code == 503
+        assert message in response.json()["detail"]
+        assert "secret-pw" not in response.text
