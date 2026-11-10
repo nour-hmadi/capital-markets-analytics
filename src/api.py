@@ -13,13 +13,15 @@ from fastapi.responses import Response
 from lxml import etree
 from sqlalchemy import create_engine, text
 
+from assistant_api import router as assistant_router
 from desk_api import router as desk_router
 from export_xml import load_schema, trade_to_xml
 from load_db import DATABASE_URL
 from pricing import bond_price, dv01, macaulay_duration
 
-app = FastAPI(title="Capital Markets Analytics API", version="2.3")
+app = FastAPI(title="Capital Markets Analytics API", version="2.4")
 app.include_router(desk_router)
+app.include_router(assistant_router)
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)   # reconnects if the cloud DB went idle
 MARTS = "analytics_marts"
 VALID_DESKS = {"EQUITY", "RATES", "FX"}

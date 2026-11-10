@@ -11,11 +11,14 @@ from streamlit.testing.v1 import AppTest
 
 import app_data
 import assistant
+import assistant_api
 import desk_api
 from desk_api import engine
 from sqlalchemy import text
 
 APP = Path(__file__).resolve().parent.parent / "app"
+PNL_SQL = ("SELECT desk, pnl_usd FROM analytics_marts.fct_daily_pnl_by_desk WHERE valuation_date = "
+           "(SELECT MAX(valuation_date) FROM analytics_marts.fct_daily_pnl_by_desk) ORDER BY pnl_usd")
 PAGES = ["Home.py", "pages/1_Market.py", "pages/2_Portfolio.py", "pages/3_Pricing.py",
          "pages/4_Trade_desk.py", "pages/5_Learn.py", "pages/6_Assistant.py", "pages/7_Privacy_and_terms.py"]
 
@@ -32,7 +35,7 @@ def api_in_process(client, monkeypatch):
     monkeypatch.setattr(app_data, "_fetch", call)
 
     def send(method, path, body=None, as_text=False, user=None):
-        headers = {"X-User-Email": user, "X-App-Key": "page-test-key"} if user else None
+        headers = {"X-App-Key": "page-test-key", **({"X-User-Email": user} if user else {})}
         response = client.request(method, path, json=body, headers=headers)
         if response.status_code >= 400:
             return False, str(response.json().get("detail"))
@@ -107,8 +110,8 @@ def test_the_assistant_page_chats(monkeypatch, fake_model):
     """Ask on the page: the question and the answer appear, and dollar amounts stay as text."""
     original = assistant.build_agent
     monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
-    monkeypatch.setattr(assistant, "build_agent",
-                        lambda api_key=None: original(model=fake_model("The FX desk lost $4.45 million.")))
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None:
+                        original(model=fake_model("The FX desk lost $4.45 million.")))
     at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
     at.chat_input[0].set_value("Which desk lost the most?").run()
     assert not at.exception, at.exception[0].value
@@ -142,3 +145,21 @@ def test_an_interrupted_question_is_dropped(monkeypatch, fake_model):
     at.run()
     at.chat_input[0].set_value("Are you good?").run()
     assert [message["content"] for message in at.session_state["chat"]] == ["Are you good?", "Yes, I'm good."]
+
+
+def test_the_assistant_page_shows_the_sql_behind_an_answer(api_in_process, reader_url, monkeypatch,
+                                                            fake_model, tool_call):
+    """The whole chain: page -> agent -> tool -> API -> read-only database user -> rows -> answer."""
+    monkeypatch.setattr(assistant_api, "READER_URL", reader_url)
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    model = fake_model(tool_call("run_sql", query=PNL_SQL), "The FX desk lost the most.")
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent",
+                        lambda api_key=None, database=None: original(model=model, database=database))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("Which desk lost the most money?").run()
+    assert not at.exception, at.exception[0].value
+    assert at.expander[0].label == "The SQL behind this answer"
+    assert at.code[0].value == PNL_SQL
+    rows = model.received[-1][-1].content                 # what the database sent back to the model
+    assert rows.index("FX") < rows.index("EQUITY") < rows.index("RATES")     # biggest loss first
