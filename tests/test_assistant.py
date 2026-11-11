@@ -116,3 +116,16 @@ def test_my_trades_asks_the_api_for_the_visitors_trades(fake_model, tool_call):
     reply(build_agent(model=model, desk=desk), [{"role": "user", "content": "What did I book?"}])
     assert desk.calls == [("GET", "/desk/trades", None)]
     assert "T90001" in model.received[-1][-1].content
+
+
+def test_the_model_knows_what_the_visitor_did_with_a_draft(fake_model):
+    """The model only knows what the app sends it: the Book click's result must be part of the conversation."""
+    model = fake_model("You booked T90004.")
+    conversation = [
+        {"role": "user", "content": "Buy 100 INDEX_US with Alpha Bank"},
+        {"role": "assistant", "content": "Here is the trade: book it with the button.", "sql": [], "lessons": [],
+         "draft": DRAFT, "status": "Booked T90004 at 4,665.11: see it on the Trade desk page."},
+        {"role": "user", "content": "What did I book?"},
+    ]
+    reply(build_agent(model=model), conversation)
+    assert "Booked T90004" in model.received[0][2].content
