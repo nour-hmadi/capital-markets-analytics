@@ -7,6 +7,7 @@ of the chain breaks: page → API → database.
 from pathlib import Path
 
 import pytest
+from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit.testing.v1 import AppTest
 
 import app_data
@@ -209,3 +210,27 @@ def test_a_drafted_trade_is_booked_only_by_the_visitors_click(api_in_process, mo
     assert any(message.value.startswith(status) for message in at.markdown)
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM desk_trades WHERE owner = 'guest'"))
+
+
+def test_the_trade_tools_act_for_the_signed_in_visitor(monkeypatch, fake_model, tool_call):
+    """The agent runs its tools in another thread, where st.user is empty: the page must pass the email itself."""
+    def signed_in_email():                                    # like st.user: known only in Streamlit's thread
+        return "nour@example.com" if get_script_run_ctx() is not None else None
+
+    calls = []
+
+    def send(method, path, body=None, as_text=False, user=None):
+        calls.append((method, path, user))
+        return True, []
+
+    monkeypatch.setattr(app_data, "signed_in_email", signed_in_email)
+    monkeypatch.setattr(app_data, "send", send)
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    model = fake_model(tool_call("my_trades"), "Here are your trades.")
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=model, desk=desk))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("What did I book?").run()
+    assert not at.exception, at.exception[0].value
+    assert calls == [("GET", "/desk/trades", "nour@example.com")]
