@@ -71,7 +71,9 @@ if not key:
 
 if "chat" not in st.session_state:
     st.session_state.chat = []                      # the whole conversation, re-sent with every question
-    st.session_state.agent = build_agent(api_key=key, database=ask_database, desk=ask_desk)
+    visitor = st.session_state.visitor = {}         # who is asking: the tools can't see st.user from their thread
+    st.session_state.agent = build_agent(api_key=key, database=ask_database, desk=lambda method, path, body=None:
+                                         ask_desk(method, path, body, user=visitor.get("email")))
 if st.session_state.chat and st.session_state.chat[-1]["role"] == "user":
     st.session_state.chat.pop()                     # a question interrupted by a newer one: drop it
 
@@ -87,6 +89,7 @@ question = st.chat_input("Ask a question, for example: Which desk lost the most 
 if question:
     st.session_state.chat.append({"role": "user", "content": question})
     show(st.session_state.chat[-1], len(st.session_state.chat) - 1)
+    st.session_state.setdefault("visitor", {})["email"] = signed_in_email()      # read here, in Streamlit's thread
     try:
         with st.spinner("Thinking… (the first question about the data can take up to a minute)"):
             answer = reply(st.session_state.agent, st.session_state.chat)

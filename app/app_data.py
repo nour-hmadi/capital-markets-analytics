@@ -145,7 +145,10 @@ def ask_database(method, path, body=None):
     return result if ok else f"Error: {result}"
 
 
-def ask_desk(method, path, body=None):
-    """For the assistant's trade tools: the API acts for the visitor, signed in or guest."""
-    ok, result = send(method, path, body, user=signed_in_email())
+def ask_desk(method, path, body=None, user=None):
+    """For the assistant's trade tools: the API acts for the visitor (their email, or None for a guest).
+
+    The page passes the email: the tools run in another thread, where Streamlit can't see who is signed in.
+    """
+    ok, result = send(method, path, body, user=user)
     return result if ok else f"Error: {result}"
