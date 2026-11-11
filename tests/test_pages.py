@@ -111,7 +111,7 @@ def test_the_assistant_page_chats(monkeypatch, fake_model):
     """Ask on the page: the question and the answer appear, and dollar amounts stay as text."""
     original = assistant.build_agent
     monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
-    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None:
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
                         original(model=fake_model("The FX desk lost $4.45 million.")))
     at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
     at.chat_input[0].set_value("Which desk lost the most?").run()
@@ -155,8 +155,8 @@ def test_the_assistant_page_shows_the_sql_behind_an_answer(api_in_process, reade
     monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
     model = fake_model(tool_call("run_sql", query=PNL_SQL), "The FX desk lost the most.")
     original = assistant.build_agent
-    monkeypatch.setattr(assistant, "build_agent",
-                        lambda api_key=None, database=None: original(model=model, database=database))
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=model, database=database))
     at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
     at.chat_input[0].set_value("Which desk lost the most money?").run()
     assert not at.exception, at.exception[0].value
@@ -172,10 +172,40 @@ def test_the_assistant_page_shows_the_lessons_behind_an_answer(monkeypatch, fake
     model = fake_model(tool_call("search_notes", question="What is DV01?"), "DV01 is the rate risk of a bond.")
     learn_notes = notes.Notes(notes.load_chunks(), fake_embed)
     original = assistant.build_agent
-    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None:
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
                         original(model=model, database=database, notes=learn_notes))
     at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
     at.chat_input[0].set_value("What is DV01?").run()
     assert not at.exception, at.exception[0].value
     assert at.expander[0].label == "From the Learn notes"
     assert "Rate risk (DV01)" in at.expander[0].markdown[0].value
+
+
+def guest_trades():
+    with engine.connect() as conn:
+        return conn.execute(text("SELECT COUNT(*) FROM desk_trades WHERE owner = 'guest'")).scalar()
+
+
+@pytest.mark.parametrize("click, booked, status", [("book", 1, "Booked T9"), ("cancel", 0, "Cancelled")])
+def test_a_drafted_trade_is_booked_only_by_the_visitors_click(api_in_process, monkeypatch, fake_model,
+                                                              tool_call, click, booked, status):
+    """Human in the loop: the AI drafts, nothing is saved until the visitor clicks Book, and Cancel saves nothing."""
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM desk_trades WHERE owner = 'guest'"))
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    draft = {"instrument_type": "EQUITY_INDEX", "underlying": "INDEX_US", "direction": "BUY", "quantity": 100,
+             "counterparty": "Alpha Bank"}
+    model = fake_model(tool_call("draft_trade", **draft), "Here is the trade: book it with the button.")
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=model, database=database, desk=desk))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("Buy 100 INDEX_US with Alpha Bank").run()
+    assert any("Trade to confirm" in info.value for info in at.info)
+    assert guest_trades() == 0                                     # drafted, not booked
+    at.button(key=f"{click}-1").click().run()
+    assert not at.exception, at.exception[0].value
+    assert guest_trades() == booked
+    assert any(message.value.startswith(status) for message in at.markdown)
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM desk_trades WHERE owner = 'guest'"))
