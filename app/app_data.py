@@ -145,10 +145,17 @@ def ask_database(method, path, body=None):
     return result if ok else f"Error: {result}"
 
 
+GUEST_NOTE = ("The visitor is a guest (not signed in): guest trades are shared by all guests and cleared every "
+              "morning. To keep their own trades, the visitor can sign in with Google on the Trade desk page.")
+
+
 def ask_desk(method, path, body=None, user=None):
     """For the assistant's trade tools: the API acts for the visitor (their email, or None for a guest).
 
     The page passes the email: the tools run in another thread, where Streamlit can't see who is signed in.
+    For a guest, the answer says so, so the AI can suggest signing in.
     """
     ok, result = send(method, path, body, user=user)
-    return result if ok else f"Error: {result}"
+    if not ok:
+        return f"Error: {result}"
+    return result if user else {"note": GUEST_NOTE, "result": result}

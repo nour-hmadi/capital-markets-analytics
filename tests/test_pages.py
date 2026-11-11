@@ -234,3 +234,18 @@ def test_the_trade_tools_act_for_the_signed_in_visitor(monkeypatch, fake_model, 
     at.chat_input[0].set_value("What did I book?").run()
     assert not at.exception, at.exception[0].value
     assert calls == [("GET", "/desk/trades", "nour@example.com")]
+
+
+def test_a_guest_is_told_to_sign_in(monkeypatch, fake_model, tool_call):
+    """A guest's trades come with a note, so the AI can suggest signing in with Google to keep their own."""
+    monkeypatch.setattr(app_data, "signed_in_email", lambda: None)
+    monkeypatch.setattr(app_data, "send", lambda method, path, body=None, as_text=False, user=None: (True, []))
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    model = fake_model(tool_call("my_trades"), "You aren't signed in: sign in with Google to keep your trades.")
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=model, desk=desk))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("What did I book?").run()
+    assert not at.exception, at.exception[0].value
+    assert "sign in with Google" in model.received[-1][-1].content     # what my_trades told the model
