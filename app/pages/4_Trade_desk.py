@@ -30,6 +30,11 @@ def usd(value):
     return f"-${abs(value):,.0f}" if value < 0 else f"${value:,.0f}"
 
 
+def price(value):
+    """Two decimals, or more when the price has them: 5,159.73 (index), 98.7654 (bond), 1.08345 (EUR/USD)."""
+    return f"{value:,.2f}" if round(value, 2) == value else f"{value:,.5f}".rstrip("0")
+
+
 if "flash" in st.session_state:                       # a message from the last action, shown once
     st.success(st.session_state.pop("flash"))
 
@@ -57,7 +62,7 @@ if booked:
         "counterparty": counterparty, "tenor_months": tenor}, user=user)
     if ok:
         st.session_state["flash"] = (f"Booked {result['trade_id']}: checked ✓ priced at that day's market "
-                                     f"({result['trade_price']:,}) ✓ saved ✓ valued ✓ · P&L {usd(result['pnl'])}")
+                                     f"({price(result['trade_price'])}) ✓ saved ✓ valued ✓ · P&L {usd(result['pnl'])}")
         st.rerun()
     st.error(result)
 
@@ -80,7 +85,8 @@ if "created_at" in table:                  # the app and the API deploy separate
 where = f"under {user}" if user else "as a guest (cleared every morning)"
 st.caption(f"Loaded live from the database (PostgreSQL on Neon) through the API · "
            f"{len(table)} trade{'s' if len(table) != 1 else ''} saved {where}")
-st.dataframe(table[columns].style.format({"pnl": usd, "dv01": usd, "quantity": "{:,.0f}"}), hide_index=True)
+st.dataframe(table[columns].style.format({"pnl": usd, "dv01": usd, "quantity": "{:,.0f}", "trade_price": price}),
+             hide_index=True)
 st.metric("P&L of your trades", usd(table["pnl"].sum()))
 
 # ---------- Change or delete ----------
