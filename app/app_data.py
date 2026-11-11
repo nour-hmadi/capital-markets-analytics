@@ -143,3 +143,9 @@ def ask_database(method, path, body=None):
     """For the assistant's tools: the API runs their SQL as a read-only user. Data, or an error the AI can read."""
     ok, result = send(method, path, body)
     return result if ok else f"Error: {result}"
+
+
+def ask_desk(method, path, body=None):
+    """For the assistant's trade tools: the API acts for the visitor, signed in or guest."""
+    ok, result = send(method, path, body, user=signed_in_email())
+    return result if ok else f"Error: {result}"
