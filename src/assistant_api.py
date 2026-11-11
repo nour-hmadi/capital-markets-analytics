@@ -3,8 +3,10 @@
 The database does the protecting, not the AI. The user assistant_reader (sql/assistant_reader.sql)
 can only read the dbt marts: it can't change anything or see visitors' trades and emails. On top of that,
 every query runs in a read-only transaction, is stopped after 5 seconds and is never committed.
-Only one statement is accepted per request, and at most 50 rows come back.
+Only one statement is accepted per request, and at most 50 rows and 20,000 characters come back:
+PostgreSQL cuts the answer before sending it, so a huge value never reaches the API or the AI.
 """
+import json
 import os
 import secrets
 from typing import Optional
@@ -18,6 +20,7 @@ import desk_api
 READER_URL = os.environ.get("ASSISTANT_DATABASE_URL", "")    # the read-only user's connection; never in the code
 SCHEMA = "analytics_marts"
 MAX_ROWS = 50
+MAX_CHARS = 20_000           # the most text one answer can send back: about 5,000 tokens for the AI
 TIMEOUT = "5s"
 
 
@@ -91,12 +94,23 @@ def query(body: Query):
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
             cur.execute(f"SET LOCAL statement_timeout = '{TIMEOUT}'")
-        with conn.cursor(name="assistant_query") as cur:     # server-side: only the rows we fetch travel
+        # 1. PostgreSQL checks the SQL alone (DECLARE ... FOR it): one complete query, or an error.
+        #    So it can't close the parenthesis in step 2 early to get past the limits (SQL injection).
+        with conn.cursor(name="assistant_query") as cur:
             cur.execute(sql)
-            rows = cur.fetchmany(MAX_ROWS + 1)
-            columns = [column.name for column in cur.description]
+        # 2. PostgreSQL runs it, turns the rows into one JSON text and cuts it: a huge answer never leaves it.
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT left(json_agg(q)::text, {MAX_CHARS + 1}) "
+                        f"FROM (SELECT * FROM ({sql}\n) AS ai LIMIT {MAX_ROWS + 1}) AS q")
+            answer = cur.fetchone()[0] or "[]"                # no rows: json_agg gives NULL
     except psycopg2.Error as error:
         raise HTTPException(status_code=400, detail=explain(error))
     finally:
         conn.close()                                          # never committed: the database rolls it back
-    return {"columns": columns, "rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS}
+    if len(answer) > MAX_CHARS:
+        raise HTTPException(status_code=400, detail=f"The answer is too big (over {MAX_CHARS:,} characters): "
+                                                    "select fewer or shorter columns")
+    rows = json.loads(answer, object_pairs_hook=list)         # each row: (column, value) pairs, in order
+    return {"columns": [name for name, _ in rows[0]] if rows else [],
+            "rows": [[value for _, value in row] for row in rows[:MAX_ROWS]],
+            "truncated": len(rows) > MAX_ROWS}
