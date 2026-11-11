@@ -249,3 +249,23 @@ def test_a_guest_is_told_to_sign_in(monkeypatch, fake_model, tool_call):
     at.chat_input[0].set_value("What did I book?").run()
     assert not at.exception, at.exception[0].value
     assert "sign in with Google" in model.received[-1][-1].content     # what my_trades told the model
+
+
+def test_the_ai_never_sees_the_visitors_email(api_in_process, monkeypatch, fake_model, tool_call):
+    """Privacy: a signed-in visitor's trades go to Gemini, but their email never does."""
+    email = "privacy-test@example.com"
+    ok, trade = app_data.send("POST", "/desk/trades", {
+        "instrument_type": "EQUITY_INDEX", "underlying": "INDEX_US", "direction": "BUY", "quantity": 100,
+        "trade_date": "2025-03-03", "counterparty": "Alpha Bank"}, user=email)
+    monkeypatch.setattr(app_data, "signed_in_email", lambda: email)
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    model = fake_model(tool_call("my_trades"), "You have one trade.")
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=model, desk=desk))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("What did I book?").run()
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM desk_trades WHERE owner = :owner"), {"owner": email})
+    assert ok and trade["trade_id"] in model.received[-1][-1].content     # the trade reached the model...
+    assert email not in str(model.received)                               # ...but the email never did

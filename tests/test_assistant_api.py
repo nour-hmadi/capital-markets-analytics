@@ -63,6 +63,20 @@ def test_at_most_50_rows_come_back(ask):
     assert len(body["rows"]) == 50 and body["truncated"] is True
 
 
+def test_a_huge_answer_is_cut_in_the_database(ask):
+    """100 MB in one value: PostgreSQL cuts the answer before sending it, so the API and the AI never get it."""
+    response = ask("SELECT repeat('x', 100000000) AS big")
+    assert response.status_code == 400
+    assert "too big" in response.json()["detail"] and len(response.content) < 1000
+
+
+def test_the_size_limit_cannot_be_escaped(ask):
+    """SQL that closes the parenthesis early, to slip a huge value past the limit, isn't one query: refused."""
+    response = ask("SELECT 1) AS ai) AS q UNION ALL SELECT repeat('x', 100000000) FROM (SELECT 1 FROM (SELECT 1")
+    assert response.status_code == 400
+    assert "syntax error" in response.json()["detail"] and len(response.content) < 1000
+
+
 @pytest.mark.parametrize("sql", [
     "DELETE FROM analytics_marts.fct_positions",
     "UPDATE analytics_marts.fct_positions SET pnl_usd = 0",
