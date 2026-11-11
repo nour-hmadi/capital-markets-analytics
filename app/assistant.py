@@ -33,7 +33,8 @@ Amounts are in US dollars.
 To explain a concept, call search_notes first and base your answer on the project's Learn notes, naming
 the lesson. If the notes don't cover it, answer from general knowledge and say so.
 To book a trade, call draft_trade. It only prepares the trade: the visitor books it with the Book button
-under your answer, so never say a trade is booked. For the visitor's own trades, call my_trades."""
+under your answer, so never say a trade is booked. For the visitor's own trades, always call my_trades:
+only the visitor's clicks book trades, so check before you answer."""
 
 
 def data_tools(database):
@@ -143,13 +144,19 @@ def build_agent(api_key=None, database=None, desk=None, notes=None, model=None, 
     return create_agent(model, tools=tools, system_prompt=INSTRUCTIONS, middleware=middleware)
 
 
+def seen_by_model(message):
+    """What the model reads of a message: its text, plus what the visitor did with a drafted trade."""
+    note = f"\n\n({message['status']})" if message.get("status") else ""
+    return {"role": message["role"], "content": message["content"] + note}
+
+
 def reply(agent, conversation):
     """The model has no memory, so the whole conversation is sent with every question.
 
     Returns the assistant's message for the page: the answer, the SQL queries the agent ran, the Learn
     lessons it read and the trade it drafted, if any.
     """
-    messages = [{"role": message["role"], "content": message["content"]} for message in conversation]
+    messages = [seen_by_model(message) for message in conversation]
     result = agent.invoke({"messages": messages})
     new = result["messages"][len(messages):]
     queries = [call["args"].get("query", "") for message in new
