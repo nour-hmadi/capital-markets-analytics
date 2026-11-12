@@ -49,7 +49,7 @@ them, and the app only talks to the API.
 |---|---|
 | Trade book | 60 trades on 3 desks (Equity, Rates, FX), valued every trading day: 7,403 valuations |
 | Python tests | 260 (unit, data, database, API, XML, page and regression tests), 45 of them for the AI assistant |
-| AI evaluation | 15 questions asked to the real Gemini, each answer checked against the database: 15/15 |
+| AI evaluation | 16 questions asked to the real Gemini, each answer checked against the database: 16/16 |
 | dbt | 9 models in 3 layers, 34 tests |
 | API | 17 endpoints, documented with OpenAPI |
 
@@ -116,11 +116,11 @@ flowchart LR
 | Book a trade without the visitor's click | Impossible: no tool books |
 | Hide instructions in data the AI reads (indirect prompt injection) | No way in: every trade field is checked against a fixed list or range |
 | A huge answer: `SELECT repeat('x', 100000000)` | **Was a gap:** 100 MB reached the API, whose free server has 512 MB of memory. Now PostgreSQL cuts every answer at 20,000 characters, after checking that the SQL is one complete query, so it can't escape the cut |
-| Off-topic requests and investment advice | **Was a gap:** now declined, by the assistant's instructions |
+| Off-topic requests, creative writing and investment advice | **Was a gap:** now declined, by the assistant's instructions |
 
 **Evaluation.** The 45 assistant tests use fake models: they prove the wiring, not the answers. So
-`tests/test_eval.py` asks the real Gemini a golden set of 15 questions (6 on the data, 3 on concepts,
-3 on trades and 3 it must decline) and checks each answer against the truth from the database: **15/15**.
+`tests/test_eval.py` asks the real Gemini a golden set of 16 questions (6 on the data, 3 on concepts,
+3 on trades and 4 it must decline) and checks each answer against the truth from the database: **16/16**.
 The first run scored 13/15: the grader didn't know the word "decline" (fixed), and one broken answer didn't
 come back in three reruns. It needs a Gemini key, so it runs on demand: `python -m pytest -m eval -v`.
 
