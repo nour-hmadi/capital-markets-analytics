@@ -11,13 +11,13 @@ if "backend_woken" not in st.session_state:   # once per visitor
 st.title("Capital Markets Analytics")
 st.markdown(
     "An end-to-end capital markets data project: market data, a trade book, "
-    "daily valuation and risk, a tested data pipeline, and this live app."
+    "daily valuation and risk, a tested data pipeline, this live app and an AI assistant."
 )
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Trades in the book", "60", border=True)
 c2.metric("Daily valuations", "7,403", border=True)
-c3.metric("Python tests", "215", border=True)
+c3.metric("Python tests", "260", border=True)
 c4.metric("dbt tests", "34", border=True)
 st.markdown("[![Tests](https://github.com/nour-hmadi/capital-markets-analytics/actions/workflows/tests.yml/badge.svg)]"
             "(https://github.com/nour-hmadi/capital-markets-analytics/actions)")
@@ -29,7 +29,8 @@ st.markdown(
     "- **Pricing:** price a bond or an FX forward yourself\n"
     "- **Trade desk:** book, change and delete your own trades (sign in with Google to keep them)\n"
     "- **Learn:** the trading basics behind each page, with short quizzes\n"
-    "- **Assistant:** ask questions in plain English, answered by an AI agent on Google Gemini"
+    "- **Assistant:** ask in plain English: an AI agent (LangChain + Gemini) reads the live data with SQL, "
+    "explains concepts from the Learn notes and drafts trades that only you can book"
 )
 
 st.info("All market data is synthetic (simulated with a fixed seed), not real market data.")
