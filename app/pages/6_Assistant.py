@@ -1,7 +1,12 @@
+from pathlib import Path
+
 import streamlit as st
 
 from app_data import ask_database, ask_desk, secret, send, signed_in_email   # first: it makes src/ importable
 from assistant import MAX_QUESTIONS, build_agent, reply
+
+ICONS = Path(__file__).resolve().parent.parent / "icons"
+AVATARS = {"user": str(ICONS / "visitor.svg"), "assistant": str(ICONS / "assistant.svg")}
 
 st.set_page_config(page_title="Assistant", page_icon="💬", layout="wide")
 st.title("Assistant")
@@ -42,7 +47,7 @@ def book(message):
 
 def show(message, index):
     """One chat bubble, with what the answer is based on (SQL, Learn lessons) and any trade to confirm."""
-    with st.chat_message(message["role"]):
+    with st.chat_message(message["role"], avatar=AVATARS[message["role"]]):
         st.markdown(md(message["content"]))
         if message.get("sql"):
             with st.expander("The SQL behind this answer"):

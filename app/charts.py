@@ -31,7 +31,7 @@ def line_chart(data, y_title, height=320):
 
 
 def bar_chart(values, x_title):
-    """Horizontal bars, one per label: blue above zero, red below. Labels stay horizontal."""
+    """Horizontal bars, one per label: teal above zero, red below. Labels stay horizontal."""
     table = values.rename("value").rename_axis("label").reset_index()
     table["sign"] = table["value"].ge(0).map({True: "Positive", False: "Negative"})
 
@@ -42,7 +42,7 @@ def bar_chart(values, x_title):
             y=alt.Y("label:N", sort=list(table["label"]), title=None),
             x=alt.X("value:Q", title=x_title, axis=alt.Axis(format="~s")),
             color=alt.Color("sign:N", legend=None,
-                            scale=alt.Scale(domain=["Positive", "Negative"], range=["#2a78d6", "#e34948"])),
+                            scale=alt.Scale(domain=["Positive", "Negative"], range=["#2dd4bf", "#f87171"])),
             tooltip=["label:N", alt.Tooltip("value:Q", title=x_title, format=",.0f")],
         )
         .properties(height=45 * len(table) + 30)
