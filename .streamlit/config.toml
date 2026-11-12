@@ -1,7 +1,45 @@
+# "Midnight": a dark theme, like a trading terminal. The app serves its own fonts (app/static/fonts).
+[server]
+enableStaticServing = true
+
 [theme]
-base = "light"
-primaryColor = "#2a78d6"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f4f3ef"
-textColor = "#0b0b0b"
-font = "sans serif"
+base = "dark"
+primaryColor = "#2dd4bf"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#121b2d"
+textColor = "#e7ecf5"
+linkColor = "#5eead4"
+borderColor = "#22304a"
+font = "IBM Plex Sans, sans-serif"
+codeFont = "IBM Plex Mono, monospace"
+baseRadius = "8px"
+greenColor = "#34d399"
+redColor = "#f87171"
+blueBackgroundColor = "#0f2a33"
+blueTextColor = "#9be7dc"
+chartCategoricalColors = ["#2dd4bf", "#fbbf24", "#a78bfa", "#60a5fa", "#f472b6"]
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/ibm-plex-sans-latin-400-normal.woff2"
+weight = "400"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/ibm-plex-sans-latin-600-normal.woff2"
+weight = "600"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/ibm-plex-sans-latin-700-normal.woff2"
+weight = "700"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fonts/ibm-plex-mono-latin-400-normal.woff2"
+weight = "400"
+
+[theme.sidebar]
+backgroundColor = "#0f1729"
+secondaryBackgroundColor = "#1a2540"
+borderColor = "#22304a"
