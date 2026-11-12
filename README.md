@@ -4,8 +4,9 @@
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://capital-markets-analytics.streamlit.app)
 
 An end-to-end capital markets data platform: simulated market data, a 60-trade book valued every day
-(P&L, DV01), a tested data pipeline (PostgreSQL, dbt, CI/CD), a REST API, and a live app where visitors
-book their own trades.
+(P&L, DV01), a tested data pipeline (PostgreSQL, dbt, CI/CD), a REST API, a live app where visitors
+book their own trades, and an AI assistant (LangChain + Google Gemini) that answers questions from the
+live data.
 
 - **Live app:** [capital-markets-analytics.streamlit.app](https://capital-markets-analytics.streamlit.app)
 - **API docs:** [capital-markets-api.onrender.com/docs](https://capital-markets-api.onrender.com/docs)
@@ -23,6 +24,7 @@ markets work, and to practise the skills a test or data engineer uses on a tradi
 | **Pricing** | Price a bond or an FX forward yourself, and see the price–yield curve |
 | **Trade desk** | Book, change and delete your own trades, priced at any 2025 market, and see each trade's XML message |
 | **Learn** | The trading basics behind each page, with short quizzes |
+| **Assistant** | Ask in plain English: an AI agent reads the live data with SQL, explains concepts from the Learn notes, and drafts trades that only you can book |
 
 Visitors can trade as guests (their trades are cleared every morning) or **sign in with Google** to keep them.
 
@@ -34,7 +36,8 @@ generate_data.py ─► trades.py ─► valuation.py ─► load_db.py ─► P
                                    valuations       + run log
                                                                                         │
      Streamlit app (Streamlit Cloud)  ◄──────  REST API (FastAPI on Render)  ◄──────────┘
-     7 pages, Google sign-in                   15 endpoints, XML trade messages
+     8 pages, Google sign-in,                  17 endpoints, XML trade messages,
+     AI assistant (Gemini)                     read-only SQL for the assistant
 ```
 
 Data flows in one direction: the pipeline loads the database, dbt builds the tested marts, the API serves
@@ -45,9 +48,10 @@ them, and the app only talks to the API.
 | | |
 |---|---|
 | Trade book | 60 trades on 3 desks (Equity, Rates, FX), valued every trading day: 7,403 valuations |
-| Python tests | 215 (unit, data, database, API, XML, page and regression tests) |
+| Python tests | 260 (unit, data, database, API, XML, page and regression tests), 45 of them for the AI assistant |
+| AI evaluation | 15 questions asked to the real Gemini, each answer checked against the database: 15/15 |
 | dbt | 9 models in 3 layers, 34 tests |
-| API | 15 endpoints, documented with OpenAPI |
+| API | 17 endpoints, documented with OpenAPI |
 
 ## How it is tested and deployed
 
@@ -72,6 +76,57 @@ them, and the app only talks to the API.
 - Sign-in uses Google (OpenID Connect) through Streamlit. The app sends the user's email to the API
   together with a secret key that only the app and the API know, so nobody can act for another user by
   calling the API directly (**401**).
+
+## AI assistant
+
+A LangChain agent on Google Gemini, on the Assistant page. For each question it chooses a tool, and the
+page shows what the answer is based on:
+
+| Tool | What it does | Shown under the answer |
+|---|---|---|
+| `list_tables`, `run_sql` | Reads the live dbt marts with SQL it writes itself (text-to-SQL) | The SQL behind this answer |
+| `search_notes` | RAG over the Learn lessons: 27 paragraphs embedded with `gemini-embedding-2`, closest by cosine similarity | From the Learn notes |
+| `draft_trade` | Prepares a trade and checks its fields. It books nothing | A card with **Book** and **Cancel** |
+| `my_trades` | Reads the visitor's own trades through the API | |
+
+```mermaid
+flowchart LR
+    V[Visitor] --> P[Assistant page] --> G[Gemini agent]
+    G -- run_sql --> Q[API: /assistant/query] -- read-only user --> M[(dbt marts)]
+    G -- search_notes --> N[Learn notes + embeddings]
+    G -- draft_trade --> C[Trade card]
+    C -- the visitor clicks Book --> T[API: /desk/trades]
+```
+
+**The database and the visitor decide, not the AI:**
+- SQL runs as `assistant_reader`, a PostgreSQL user that can only `SELECT` from the dbt marts
+  (`sql/assistant_reader.sql`): no writes, and no access to visitors' trades or emails. Every query runs in
+  a read-only transaction with a 5-second timeout: one statement only, at most 50 rows and 20,000
+  characters (cut inside PostgreSQL), never committed.
+- The AI has no tool that books: only the visitor's click on **Book** calls the API (human in the loop).
+- Gemini sees a signed-in visitor's trades, never their email. Only the app can call the assistant's
+  endpoints, and a backup model answers when Gemini is busy.
+
+**Safety review.** I attacked the assistant the way a malicious visitor would:
+
+| Attack | Result |
+|---|---|
+| Change or delete data; read other visitors' trades, passwords or server files | Refused by the database |
+| Switch off the 5-second limit | Refused: only queries get through, and a running timer can't be stopped |
+| Book a trade without the visitor's click | Impossible: no tool books |
+| Hide instructions in data the AI reads (indirect prompt injection) | No way in: every trade field is checked against a fixed list or range |
+| A huge answer: `SELECT repeat('x', 100000000)` | **Was a gap:** 100 MB reached the API, whose free server has 512 MB of memory. Now PostgreSQL cuts every answer at 20,000 characters, after checking that the SQL is one complete query, so it can't escape the cut |
+| Off-topic requests and investment advice | **Was a gap:** now declined, by the assistant's instructions |
+
+**Evaluation.** The 45 assistant tests use fake models: they prove the wiring, not the answers. So
+`tests/test_eval.py` asks the real Gemini a golden set of 15 questions (6 on the data, 3 on concepts,
+3 on trades and 3 it must decline) and checks each answer against the truth from the database: **15/15**.
+The first run scored 13/15: the grader didn't know the word "decline" (fixed), and one broken answer didn't
+come back in three reruns. It needs a Gemini key, so it runs on demand: `python -m pytest -m eval -v`.
+
+**Two bugs worth knowing:** the model only knows what the app sends it, so the result of the Book click
+had to become part of the conversation; and LangChain runs tools in a thread pool, where Streamlit can't
+see who is signed in, so the page passes the visitor's email to the tools itself. Each has a regression test.
 
 ## XML trade messages
 
@@ -105,22 +160,25 @@ pip install -r requirements.txt
 python src/pipeline.py                     # generate data, book and value trades, load PostgreSQL
 python -m venv .dbt-venv && .dbt-venv/bin/pip install -r requirements-dbt.txt
 .dbt-venv/bin/dbt build --project-dir dbt --profiles-dir dbt
-python -m pytest
+python -m pytest                           # the AI evaluation runs on demand: python -m pytest -m eval
 
 uvicorn api:app --app-dir src --port 8000             # API on http://localhost:8000/docs
 API_URL=http://localhost:8000 streamlit run app/Home.py
 ```
 
+The Assistant page and its evaluation need `GOOGLE_API_KEY` in `.streamlit/secrets.toml`, and the API needs
+`ASSISTANT_DATABASE_URL`: the connection of a user created with `sql/assistant_reader.sql`.
+
 ## Project structure
 
 ```
-src/          data generation, pricing, valuation, pipeline, API (api.py, desk_api.py)
-app/          Streamlit app: Home and pages/
+src/          data generation, pricing, valuation, pipeline, API (api.py, desk_api.py, assistant_api.py)
+app/          Streamlit app: Home and pages/; the AI assistant (assistant.py) and its RAG notes (notes.py)
 dbt/          dbt models, tests and macros
 learn/        the Learn page's lessons and quizzes, one Markdown file per topic
 schemas/      XSD for trade messages
-sql/          database schema
-tests/        pytest suite;  smoke/  tests against the live API
+sql/          database schema, and the AI assistant's read-only user
+tests/        pytest suite, with the AI assistant's evaluation (test_eval.py);  smoke/  tests against the live API
 notebooks/    my learning notebooks (capital markets basics, bonds and FX)
 .github/      CI and the scheduled data refresh
 ```
