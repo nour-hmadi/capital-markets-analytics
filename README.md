@@ -36,7 +36,7 @@ generate_data.py ─► trades.py ─► valuation.py ─► load_db.py ─► P
                                    valuations       + run log
                                                                                         │
      Streamlit app (Streamlit Cloud)  ◄──────  REST API (FastAPI on Render)  ◄──────────┘
-     8 pages, Google sign-in,                  17 endpoints, XML trade messages,
+     8 pages, Google sign-in,                  18 endpoints, XML trade messages,
      AI assistant (Gemini)                     read-only SQL for the assistant
 ```
 
@@ -48,10 +48,10 @@ them, and the app only talks to the API.
 | | |
 |---|---|
 | Trade book | 60 trades on 3 desks (Equity, Rates, FX), valued every trading day: 7,403 valuations |
-| Python tests | 260 (unit, data, database, API, XML, page and regression tests), 45 of them for the AI assistant |
-| AI evaluation | 16 questions asked to the real Gemini, each answer checked against the database: 16/16 |
+| Python tests | 263 (unit, data, database, API, XML, page and regression tests), 48 of them for the AI assistant |
+| AI evaluation | 16 questions asked to the real Gemini, each answer checked against the database: 16/16; median answer time 2.2 s |
 | dbt | 9 models in 3 layers, 34 tests |
-| API | 17 endpoints, documented with OpenAPI |
+| API | 18 endpoints, documented with OpenAPI |
 
 ## How it is tested and deployed
 
@@ -96,6 +96,7 @@ flowchart LR
     G -- search_notes --> N[Learn notes + embeddings]
     G -- draft_trade --> C[Trade card]
     C -- the visitor clicks Book --> T[API: /desk/trades]
+    P -- the visitor rates an answer --> F[API: /assistant/feedback] --> R[(Ratings: no name or email)]
 ```
 
 **The database and the visitor decide, not the AI:**
@@ -111,18 +112,24 @@ flowchart LR
 
 | Attack | Result |
 |---|---|
-| Change or delete data; read other visitors' trades, passwords or server files | Refused by the database |
+| Change or delete data; read other visitors' trades, ratings, passwords or server files | Refused by the database |
 | Switch off the 5-second limit | Refused: only queries get through, and a running timer can't be stopped |
 | Book a trade without the visitor's click | Impossible: no tool books |
 | Hide instructions in data the AI reads (indirect prompt injection) | No way in: every trade field is checked against a fixed list or range |
 | A huge answer: `SELECT repeat('x', 100000000)` | **Was a gap:** 100 MB reached the API, whose free server has 512 MB of memory. Now PostgreSQL cuts every answer at 20,000 characters, after checking that the SQL is one complete query, so it can't escape the cut |
 | Off-topic requests, creative writing and investment advice | **Was a gap:** now declined, by the assistant's instructions |
 
-**Evaluation.** The 45 assistant tests use fake models: they prove the wiring, not the answers. So
+**Evaluation.** The 48 assistant tests use fake models: they prove the wiring, not the answers. So
 `tests/test_eval.py` asks the real Gemini a golden set of 16 questions (6 on the data, 3 on concepts,
-3 on trades and 4 it must decline) and checks each answer against the truth from the database: **16/16**.
-The first run scored 13/15: the grader didn't know the word "decline" (fixed), and one broken answer didn't
-come back in three reruns. It needs a Gemini key, so it runs on demand: `python -m pytest -m eval -v`.
+3 on trades and 4 it must decline) and checks each answer against the truth from the database: **16/16**
+on the last full run. It also times every answer, because speed matters to visitors too: **2.2 s** median,
+4.8 s at the slowest. A question Google doesn't answer (busy, or over the free quota) is skipped, not
+failed. The first run scored 13/15: the grader didn't know the word "decline" (fixed), and one broken answer
+didn't come back in three reruns. It needs a Gemini key, so it runs on demand: `python -m pytest -m eval -v`.
+
+**Feedback.** Visitors rate each answer with 👍 or 👎. The rating is saved with the question and the answer,
+without any name or email, in a table the assistant's read-only user can't read. Thumbs down show where the
+assistant fails, so those questions can join the golden set.
 
 **Two bugs worth knowing:** the model only knows what the app sends it, so the result of the Book click
 had to become part of the conversation; and LangChain runs tools in a thread pool, where Streamlit can't

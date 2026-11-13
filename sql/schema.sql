@@ -75,3 +75,13 @@ CREATE TABLE IF NOT EXISTS desk_trades (
     maturity_date   DATE,
     counterparty    TEXT        NOT NULL
 );
+
+-- Visitors' ratings of the assistant's answers (thumbs up or down). Never dropped by a reload.
+-- No name, email or IP address: only the question, the answer and the rating.
+CREATE TABLE IF NOT EXISTS assistant_feedback (
+    feedback_id SERIAL      PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    helpful     BOOLEAN     NOT NULL,
+    question    TEXT        NOT NULL,
+    answer      TEXT        NOT NULL
+);
