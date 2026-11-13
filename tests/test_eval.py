@@ -5,9 +5,11 @@ with the real tools (SQL through the API as the read-only user, and the Learn no
 GOOGLE_API_KEY (in the environment or .streamlit/secrets.toml) and use the free quota. pytest.ini skips them,
 here and in GitHub Actions. Run them with:  python -m pytest -m eval -v
 Answers vary from run to run, so the result is a score (for example 14 passed, 1 failed), not a gate.
+When Google doesn't answer (busy, or over the free quota), the question is skipped: it isn't a wrong answer.
 """
 import os
 import re
+import statistics
 import time
 import tomllib
 from pathlib import Path
@@ -89,6 +91,12 @@ def declines(answer):
     return any(words in answer for words in REFUSAL_WORDS)
 
 
+def google_busy(error):
+    """True when Google didn't answer at all: busy, too slow, or over the free quota."""
+    return any(code in str(error) for code in ("429", "503", "504", "RESOURCE_EXHAUSTED", "UNAVAILABLE",
+                                               "DEADLINE_EXCEEDED"))
+
+
 def test_the_eval_scores_answers_correctly():
     """The eval's own scoring, checked without Gemini: this one runs with the normal tests."""
     assert says_number("The FX desk lost -$4,449,992.70.", -4449992.70)
@@ -98,6 +106,8 @@ def test_the_eval_scores_answers_correctly():
     assert not says_number("The Equity desk lost $3.03 million.", -4449992.70)
     assert not says_number("On 2025-12-18.", 20, tolerance=0)
     assert declines("I can’t give personal investment advice.") and not declines("The FX desk lost the most.")
+    assert google_busy(RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand."))
+    assert not google_busy(KeyError("sql"))
     assert declines("I must politely decline writing a poem about cats!")      # Gemini's words in the first run
 
 
@@ -113,7 +123,7 @@ def gemini_key():
 
 
 @pytest.fixture(scope="module")
-def ask(client, reader_url, gemini_key):
+def ask(client, reader_url, gemini_key, request):
     """Ask the real Gemini one question, with the real tools: SQL through the API as the read-only user, the
     Learn notes, and a fake trade desk that holds one trade (so the eval never books anything)."""
     with pytest.MonkeyPatch.context() as patch:
@@ -131,11 +141,25 @@ def ask(client, reader_url, gemini_key):
 
         agent = assistant.build_agent(api_key=gemini_key, database=database, desk=desk)
 
+        seconds = []                                    # how long each answer took: latency is a criterion too
+
         def ask_one(question):
             time.sleep(PAUSE)
-            return assistant.reply(agent, [{"role": "user", "content": question}])
+            started = time.monotonic()
+            try:
+                answer = assistant.reply(agent, [{"role": "user", "content": question}])
+            except Exception as error:
+                if google_busy(error):                  # no answer at all: skipped, not failed
+                    pytest.skip(f"Google didn't answer: {str(error)[:100]}")
+                raise
+            seconds.append(time.monotonic() - started)
+            return answer
         ask_one.desk = desk
         yield ask_one
+    if seconds:                                         # printed past pytest's capture, so it always shows
+        with request.config.pluginmanager.get_plugin("capturemanager").global_and_fixture_disabled():
+            print(f"\nLatency: median {statistics.median(seconds):.1f} s, slowest {max(seconds):.1f} s "
+                  f"({len(seconds)} answers)")
 
 
 @pytest.mark.eval

@@ -2,7 +2,7 @@ import streamlit as st
 
 st.set_page_config(page_title="Privacy and terms", page_icon="🔒", layout="wide")
 st.title("Privacy and terms")
-st.caption("Capital Markets Analytics is a portfolio project by Nour Hmadi. Last updated: 10 November 2026.")
+st.caption("Capital Markets Analytics is a portfolio project by Nour Hmadi. Last updated: 13 November 2026.")
 
 st.header("Privacy policy", anchor="privacy")
 st.markdown("""
@@ -13,8 +13,9 @@ st.markdown("""
 - **What is never done.** Your Google password is never seen. Nothing is sold, and there is no
   advertising or tracking.
 - **The assistant.** Questions you type on the Assistant page are sent to Google Gemini to be answered;
-  this app doesn't store them. On Gemini's free tier, Google may review them and use them to improve its
-  products, so please don't type personal information there.
+  this app doesn't store them, unless you rate an answer: then the question, the answer and your rating are
+  saved, without your name or email, to improve the assistant. On Gemini's free tier, Google may review
+  questions and use them to improve its products, so please don't type personal information there.
 - **Guests.** Without signing in, nothing personal is collected, and guest trades are deleted every morning.
 - **Deleting your data.** Delete your trades on the Trade desk at any time, or email the contact below
   to remove everything linked to your email.

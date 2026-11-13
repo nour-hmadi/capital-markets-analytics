@@ -269,3 +269,21 @@ def test_the_ai_never_sees_the_visitors_email(api_in_process, monkeypatch, fake_
         conn.execute(text("DELETE FROM desk_trades WHERE owner = :owner"), {"owner": email})
     assert ok and trade["trade_id"] in model.received[-1][-1].content     # the trade reached the model...
     assert email not in str(model.received)                               # ...but the email never did
+
+
+def test_a_visitor_rates_an_answer(api_in_process, monkeypatch, fake_model):
+    """Thumbs up under an answer saves the question, the answer and the rating: no name or email."""
+    monkeypatch.setattr(app_data, "secret", lambda name: "test-key" if name == "GOOGLE_API_KEY" else None)
+    original = assistant.build_agent
+    monkeypatch.setattr(assistant, "build_agent", lambda api_key=None, database=None, desk=None:
+                        original(model=fake_model("The FX desk lost the most.")))
+    at = AppTest.from_file(str(APP / "pages/6_Assistant.py"), default_timeout=30).run()
+    at.chat_input[0].set_value("Which desk lost the most money?").run()
+    at.feedback[0].set_value(1).run()                                  # thumbs up
+    assert not at.exception, at.exception[0].value
+    assert any("rating was saved" in caption.value for caption in at.caption)
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT helpful, question, answer FROM assistant_feedback "
+                                "ORDER BY feedback_id DESC LIMIT 1")).one()
+        conn.execute(text("DELETE FROM assistant_feedback WHERE question = 'Which desk lost the most money?'"))
+    assert tuple(row) == (True, "Which desk lost the most money?", "The FX desk lost the most.")

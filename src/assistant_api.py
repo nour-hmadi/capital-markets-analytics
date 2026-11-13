@@ -5,6 +5,9 @@ can only read the dbt marts: it can't change anything or see visitors' trades an
 every query runs in a read-only transaction, is stopped after 5 seconds and is never committed.
 Only one statement is accepted per request, and at most 50 rows and 20,000 characters come back:
 PostgreSQL cuts the answer before sending it, so a huge value never reaches the API or the AI.
+
+Visitors can also rate the answers (thumbs up or down): /assistant/feedback saves the rating with the
+question and the answer, without any name or email, in a table the read-only user can't read.
 """
 import json
 import os
@@ -14,6 +17,7 @@ from typing import Optional
 import psycopg2
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 import desk_api
 
@@ -36,6 +40,12 @@ router = APIRouter(prefix="/assistant", tags=["assistant"], dependencies=[Depend
 
 class Query(BaseModel):
     sql: str = Field(min_length=1, max_length=5000)
+
+
+class Feedback(BaseModel):
+    question: str = Field(min_length=1, max_length=5000)
+    answer: str = Field(min_length=1, max_length=20000)
+    helpful: bool
 
 
 def connect():
@@ -114,3 +124,17 @@ def query(body: Query):
     return {"columns": [name for name, _ in rows[0]] if rows else [],
             "rows": [[value for _, value in row] for row in rows[:MAX_ROWS]],
             "truncated": len(rows) > MAX_ROWS}
+
+
+@router.post("/feedback", status_code=201)
+def feedback(body: Feedback):
+    """A visitor's thumbs up or down on an answer, saved for review with the question and the answer.
+
+    No name, email or IP address. It is written by the app's own database user: the assistant's
+    read-only user can't read the ratings.
+    """
+    with desk_api.engine.begin() as conn:
+        feedback_id = conn.execute(text("INSERT INTO assistant_feedback (helpful, question, answer) "
+                                        "VALUES (:helpful, :question, :answer) RETURNING feedback_id"),
+                                   body.model_dump()).scalar()
+    return {"feedback_id": feedback_id}

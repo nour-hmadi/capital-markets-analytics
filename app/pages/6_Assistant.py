@@ -13,7 +13,8 @@ st.title("Assistant")
 st.caption("Ask about capital markets or the project's data, in plain English. An AI agent (LangChain) on "
            "Google Gemini explains concepts from the Learn notes, writes SQL that the API runs on the database "
            "as a read-only user, and drafts trades that only you can book.")
-st.caption("Questions are sent to Google Gemini, which may review them: please don't type personal information.")
+st.caption("Questions are sent to Google Gemini, which may review them: please don't type personal information. "
+           "Rating an answer saves the question and the answer, without your name or email.")
 
 
 def md(text):
@@ -45,8 +46,23 @@ def book(message):
     st.rerun()
 
 
+def rate(message, question, key):
+    """Save the visitor's thumbs up or down with the question and the answer: no name or email.
+
+    A callback: Streamlit runs it before drawing the page again, so the thumbs make way for a note at once.
+    """
+    rating = st.session_state[key]                      # 1 for thumbs up, 0 for down, None if unselected
+    if rating is None:
+        return
+    ok, result = send("POST", "/assistant/feedback",
+                      {"question": question, "answer": message["content"], "helpful": rating == 1})
+    message["rated"] = ok
+    message["rating_note"] = (f"{'👍' if rating == 1 else '👎'} Thanks: your rating was saved." if ok
+                              else f"Your rating couldn't be saved: {result}")
+
+
 def show(message, index):
-    """One chat bubble, with what the answer is based on (SQL, Learn lessons) and any trade to confirm."""
+    """One chat bubble: what the answer is based on (SQL, Learn lessons), any trade to confirm, a rating."""
     with st.chat_message(message["role"], avatar=AVATARS[message["role"]]):
         st.markdown(md(message["content"]))
         if message.get("sql"):
@@ -67,6 +83,13 @@ def show(message, index):
                 if right.button("Cancel", key=f"cancel-{index}"):
                     message["status"] = "Cancelled: nothing was booked."
                     st.rerun()
+        if message["role"] == "assistant":
+            if not message.get("rated"):                # one rating per answer
+                key = f"rating-{index}"
+                st.feedback("thumbs", key=key, on_change=rate,
+                            args=(message, st.session_state.chat[index - 1]["content"], key))
+            if message.get("rating_note"):
+                st.caption(message["rating_note"])
 
 
 key = secret("GOOGLE_API_KEY")

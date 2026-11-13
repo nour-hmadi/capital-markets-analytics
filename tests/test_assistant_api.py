@@ -98,6 +98,27 @@ def test_visitors_trades_and_emails_are_out_of_reach(ask):
     assert "permission denied for table desk_trades" in response.json()["detail"]
 
 
+def test_ratings_are_saved_without_personal_data(client, monkeypatch):
+    """A visitor's thumbs up or down is saved with the question and the answer, and nothing else."""
+    monkeypatch.setattr(desk_api, "APP_KEY", KEY)
+    rating = {"question": "Which desk lost the most?", "answer": "The FX desk.", "helpful": True}
+    assert client.post("/assistant/feedback", json=rating).status_code == 401              # only the app
+    response = client.post("/assistant/feedback", json=rating, headers={"X-App-Key": KEY})
+    assert response.status_code == 201
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT * FROM assistant_feedback WHERE feedback_id = :id"),
+                           {"id": response.json()["feedback_id"]}).mappings().one()
+        conn.execute(text("DELETE FROM assistant_feedback WHERE feedback_id = :id"), {"id": row["feedback_id"]})
+    assert set(row) == {"feedback_id", "created_at", "helpful", "question", "answer"}       # no name, no email
+    assert row["helpful"] is True and row["question"] == rating["question"]
+
+
+def test_the_ai_cannot_read_the_ratings(ask):
+    response = ask("SELECT question FROM assistant_feedback")
+    assert response.status_code == 400
+    assert "permission denied for table assistant_feedback" in response.json()["detail"]
+
+
 def test_a_slow_query_is_stopped(ask, monkeypatch):
     monkeypatch.setattr(assistant_api, "TIMEOUT", "1s")
     started = time.monotonic()
