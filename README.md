@@ -79,8 +79,12 @@ them, and the app only talks to the API.
 
 ## AI assistant
 
-A LangChain agent on Google Gemini, on the Assistant page. For each question it chooses a tool, and the
-page shows what the answer is based on:
+**Product spec:** [docs/PRD.md](docs/PRD.md), with the problem, users, user stories, success criteria, risks
+and roadmap.
+
+A LangChain agent on Google Gemini, on the Assistant page. LangChain's `create_agent` builds it as a
+LangGraph graph: the model calls tools, reads their results and loops until it can answer. The page shows
+what each answer is based on:
 
 | Tool | What it does | Shown under the answer |
 |---|---|---|
@@ -182,6 +186,7 @@ The Assistant page and its evaluation need `GOOGLE_API_KEY` in `.streamlit/secre
 src/          data generation, pricing, valuation, pipeline, API (api.py, desk_api.py, assistant_api.py)
 app/          Streamlit app: Home and pages/; the AI assistant (assistant.py) and its RAG notes (notes.py)
 dbt/          dbt models, tests and macros
+docs/         the AI assistant's product spec (PRD)
 learn/        the Learn page's lessons and quizzes, one Markdown file per topic
 schemas/      XSD for trade messages
 sql/          database schema, and the AI assistant's read-only user
