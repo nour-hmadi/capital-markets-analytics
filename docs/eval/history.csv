@@ -1,0 +1,2 @@
+ran_at,model,questions,passed,failed,skipped,median_seconds,slowest_seconds
+2026-11-15 23:51 UTC,gemini-3.5-flash-lite,50,47,2,1,2.5,19.54

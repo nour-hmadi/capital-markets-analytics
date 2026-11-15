@@ -122,3 +122,63 @@ def fake_embed():
         return [word_vector(text) for text in texts]
     embed.calls = []
     return embed
+
+
+# ---- Recording the AI evaluation (tests marked "eval") for the app's Evaluation page ----
+EVAL_DIR = Path(__file__).resolve().parent.parent / "docs" / "eval"
+CATEGORY = {"test_data_questions": "Data questions", "test_concept_questions": "Concept questions",
+            "test_trade_requests": "Trade requests", "test_what_did_i_book": "The visitor's trades",
+            "test_my_trade_pnl": "The visitor's trades", "test_requests_it_must_decline": "Must decline",
+            "test_questions_without_an_answer": "No data to answer"}
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Keep the outcome of every eval question: what was asked, what came back, pass or fail, and the time."""
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not item.get_closest_marker("eval"):
+        return
+    properties = dict(item.user_properties)
+    results = item.session.__dict__.setdefault("eval_results", [])
+    results.append({"id": item.name, "category": CATEGORY.get(item.originalname, item.originalname),
+                    "question": properties.get("question", ""), "outcome": report.outcome,
+                    "seconds": properties.get("seconds"), "answer": properties.get("answer", ""),
+                    "why": str(call.excinfo.value)[:300] if call.excinfo else ""})
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """After an eval run, save docs/eval/latest.json and add one line to docs/eval/history.csv."""
+    import csv
+    import json
+    import statistics
+    from datetime import datetime, timezone
+
+    results = getattr(session, "eval_results", None)
+    if not results:
+        return
+    import assistant
+    seconds = [r["seconds"] for r in results if r["seconds"] is not None]
+    counts = {status: sum(r["outcome"] == status for r in results) for status in ("passed", "failed", "skipped")}
+    by_category = {}
+    for r in results:
+        bucket = by_category.setdefault(r["category"], {"passed": 0, "failed": 0, "skipped": 0})
+        bucket[r["outcome"]] += 1
+    run = {"ran_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "model": assistant.MODEL,
+           "questions": len(results), **counts,
+           "median_seconds": round(statistics.median(seconds), 2) if seconds else None,
+           "slowest_seconds": round(max(seconds), 2) if seconds else None,
+           "by_category": by_category, "results": results}
+    EVAL_DIR.mkdir(parents=True, exist_ok=True)
+    (EVAL_DIR / "latest.json").write_text(json.dumps(run, indent=2, ensure_ascii=False) + "\n")
+    history = EVAL_DIR / "history.csv"
+    new = not history.exists()
+    with history.open("a", newline="") as file:
+        writer = csv.writer(file)
+        if new:
+            writer.writerow(["ran_at", "model", "questions", "passed", "failed", "skipped", "median_seconds",
+                             "slowest_seconds"])
+        writer.writerow([run["ran_at"], run["model"], run["questions"], counts["passed"], counts["failed"],
+                         counts["skipped"], run["median_seconds"], run["slowest_seconds"]])
+    print(f"\nEvaluation saved: {counts['passed']}/{len(results)} passed, {counts['skipped']} skipped, "
+          f"median {run['median_seconds']} s -> docs/eval/latest.json")

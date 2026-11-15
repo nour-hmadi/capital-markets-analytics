@@ -36,6 +36,7 @@ def check_app_key(x_app_key: Optional[str] = Header(None)):
 
 
 router = APIRouter(prefix="/assistant", tags=["assistant"], dependencies=[Depends(check_app_key)])
+public = APIRouter(prefix="/assistant", tags=["assistant"])     # no key: nothing here is private
 
 
 class Query(BaseModel):
@@ -138,3 +139,15 @@ def feedback(body: Feedback):
                                         "VALUES (:helpful, :question, :answer) RETURNING feedback_id"),
                                    body.model_dump()).scalar()
     return {"feedback_id": feedback_id}
+
+
+@public.get("/stats")
+def stats():
+    """How visitors rate the answers: counts only, for the Evaluation page. No question is shown."""
+    with desk_api.engine.connect() as conn:
+        total, helpful, recent, recent_helpful = conn.execute(text(
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE helpful), "
+            "COUNT(*) FILTER (WHERE created_at > now() - interval '7 days'), "
+            "COUNT(*) FILTER (WHERE helpful AND created_at > now() - interval '7 days') "
+            "FROM assistant_feedback")).one()
+    return {"ratings": total, "helpful": helpful, "last_7_days": {"ratings": recent, "helpful": recent_helpful}}

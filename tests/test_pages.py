@@ -22,7 +22,8 @@ APP = Path(__file__).resolve().parent.parent / "app"
 PNL_SQL = ("SELECT desk, pnl_usd FROM analytics_marts.fct_daily_pnl_by_desk WHERE valuation_date = "
            "(SELECT MAX(valuation_date) FROM analytics_marts.fct_daily_pnl_by_desk) ORDER BY pnl_usd")
 PAGES = ["Home.py", "pages/1_Market.py", "pages/2_Portfolio.py", "pages/3_Pricing.py",
-         "pages/4_Trade_desk.py", "pages/5_Learn.py", "pages/6_Assistant.py", "pages/7_Privacy_and_terms.py"]
+         "pages/4_Trade_desk.py", "pages/5_Learn.py", "pages/6_Assistant.py", "pages/7_Privacy_and_terms.py",
+         "pages/8_Evaluation.py"]
 
 
 @pytest.fixture
