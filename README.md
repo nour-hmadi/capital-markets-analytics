@@ -79,7 +79,7 @@ them, and the app only talks to the API.
 
 ## AI assistant
 
-**Product spec:** [docs/PRD.md](docs/PRD.md), with the problem, users, user stories, success criteria, risks
+**Case study:** [docs/CASE_STUDY.md](docs/CASE_STUDY.md) · **Product spec:** [docs/PRD.md](docs/PRD.md), with the problem, users, user stories, success criteria, risks
 and roadmap.
 
 A LangChain agent on Google Gemini, on the Assistant page. LangChain's `create_agent` builds it as a
