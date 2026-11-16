@@ -34,7 +34,8 @@ REFUSAL_WORDS = ("can't", "cannot", "can only", "unable", "not able", "won't", "
                  "do not have", "not allowed")
 NO_DATA_WORDS = REFUSAL_WORDS + ("no data", "no record", "not available", "isn't available", "doesn't have",
                                  "does not have", "no valuation", "no result", "nothing", "not found", "no trades",
-                                 "there is no", "there are no", "no series", "only tracks", "only has")
+                                 "there is no", "there are no", "no series", "only tracks", "only has",
+                                 "do not track", "don't track", "not tracked", "not in the data", "not part of")
 
 
 def last_day(table):

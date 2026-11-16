@@ -49,7 +49,7 @@ them, and the app only talks to the API.
 |---|---|
 | Trade book | 60 trades on 3 desks (Equity, Rates, FX), valued every trading day: 7,403 valuations |
 | Python tests | 263 (unit, data, database, API, XML, page and regression tests), 48 of them for the AI assistant |
-| AI evaluation | 16 questions asked to the real Gemini, each answer checked against the database: 16/16; median answer time 2.2 s |
+| AI evaluation | 50 questions asked to the real Gemini, each answer checked against the truth: 49/49; median answer time 3.5 s; every run saved and shown on the Evaluation page |
 | dbt | 9 models in 3 layers, 34 tests |
 | API | 18 endpoints, documented with OpenAPI |
 
@@ -124,9 +124,9 @@ flowchart LR
 | Off-topic requests, creative writing and investment advice | **Was a gap:** now declined, by the assistant's instructions |
 
 **Evaluation.** The 48 assistant tests use fake models: they prove the wiring, not the answers. So
-`tests/test_eval.py` asks the real Gemini a golden set of 16 questions (6 on the data, 3 on concepts,
-3 on trades and 4 it must decline) and checks each answer against the truth from the database: **16/16**
-on the last full run. It also times every answer, because speed matters to visitors too: **2.2 s** median,
+`tests/test_eval.py` asks the real Gemini a golden set of 50 questions (20 on the data, 10 on concepts,
+8 trade requests, 8 it must decline, 2 about the visitor's own trades and 2 with no answer in the data) and checks each answer against the truth from the database: **49/49**
+on the last full run. It also times every answer, because speed matters to visitors too: **3.5 s** median,
 4.8 s at the slowest. A question Google doesn't answer (busy, or over the free quota) is skipped, not
 failed. The first run scored 13/15: the grader didn't know the word "decline" (fixed), and one broken answer
 didn't come back in three reruns. It needs a Gemini key, so it runs on demand: `python -m pytest -m eval -v`.
