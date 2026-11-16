@@ -113,6 +113,15 @@ def test_ratings_are_saved_without_personal_data(client, monkeypatch):
     assert row["helpful"] is True and row["question"] == rating["question"]
 
 
+def test_rating_counts_are_public_and_anonymous(client):
+    """The Evaluation page shows how many visitors rated the answers, and nothing a visitor typed."""
+    response = client.get("/assistant/stats")                                               # no key needed
+    assert response.status_code == 200
+    stats = response.json()
+    assert set(stats) == {"ratings", "helpful", "last_7_days"} and stats["helpful"] <= stats["ratings"]
+    assert "question" not in response.text
+
+
 def test_the_ai_cannot_read_the_ratings(ask):
     response = ask("SELECT question FROM assistant_feedback")
     assert response.status_code == 400

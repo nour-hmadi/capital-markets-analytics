@@ -48,8 +48,8 @@ Real traders are not users: the data is synthetic, and nothing here is financial
 
 | Metric | Target | Now |
 |---|---|---|
-| Correct answers on the golden set (16 questions, checked against the database) | 15/16 or more | 16/16 (last full run) |
-| Median answer time | under 5 s | 2.2 s (slowest: 4.8 s) |
+| Correct answers on the golden set (50 questions, checked against the truth) | 90% or more | 49/49 (last full run) |
+| Median answer time | under 5 s | 3.5 s (slowest: 41.68 s) |
 | Requests it must decline (advice, off-topic, creative writing, attacks) | all declined | 4/4 |
 | Trades booked without the visitor's click | none | none: no tool can book |
 | Visitor's email sent to Gemini, or saved with a rating | never | never: covered by tests |
@@ -74,7 +74,7 @@ Real traders are not users: the data is synthetic, and nothing here is financial
 |---|---|---|
 | Done (v1, November 2026) | Text-to-SQL, RAG over the Learn notes, trade drafts, safety review, golden-set eval, answer time, 👍/👎 ratings | The core: correct, safe and measured |
 | Next | Review the 👎 answers every week, and add the questions it got wrong to the golden set | Real questions make the eval harder and more honest |
-| Next | Run the eval every week (scheduled workflow) and track the score and answer time over time | Notice a drop in quality after a model change |
+| Done | Every eval run is saved (docs/eval) and shown on the Evaluation page: score by category, answer times, trend over runs, visitors' ratings | Notice a drop in quality after a model change |
 | Later | Charts in answers, such as "plot the FX desk's P&L" | A trend is faster to read in a chart |
 | Later | Show a drafted trade's price and risk (DV01) before the visitor books it | Better decisions before the click |
 | Later | Answers in Arabic and French | Serve visitors in Lebanon in their own languages |
