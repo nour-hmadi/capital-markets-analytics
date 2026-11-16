@@ -33,7 +33,8 @@ SCALE = {"million": 1e6, "m": 1e6, "billion": 1e9, "bn": 1e9, "k": 1e3}
 REFUSAL_WORDS = ("can't", "cannot", "can only", "unable", "not able", "won't", "decline", "don't have",
                  "do not have", "not allowed")
 NO_DATA_WORDS = REFUSAL_WORDS + ("no data", "no record", "not available", "isn't available", "doesn't have",
-                                 "does not have", "no valuation", "no result", "nothing", "not found", "no trades")
+                                 "does not have", "no valuation", "no result", "nothing", "not found", "no trades",
+                                 "there is no", "there are no", "no series", "only tracks", "only has")
 
 
 def last_day(table):
@@ -89,7 +90,7 @@ DATA = [   # (name, question, the SQL that gives the true answer): 20 questions,
     ("valuation days", "On how many days has the book been valued?",
      f"SELECT COUNT(DISTINCT valuation_date) FROM {PNL}"),
 ]
-CONCEPTS = [   # 10 questions: two per lesson, and the right lesson must be among those the model read
+CONCEPTS = [   # 10 questions: two per lesson, and a right lesson must be among those the model read
     ("What is DV01?", "Rate risk (DV01)"),
     ("If yields rise by one basis point, what happens to my bond position?", "Rate risk (DV01)"),
     ("What is an FX forward?", "FX forwards"),
@@ -99,7 +100,7 @@ CONCEPTS = [   # 10 questions: two per lesson, and the right lesson must be amon
     ("What is an equity index?", "Equities"),
     ("How is the P&L of a long equity position calculated?", "Equities"),
     ("What is a government bond?", "Bonds"),
-    ("Why does a bond's price fall when yields rise?", "Bonds"),
+    ("Why does a bond's price fall when yields rise?", ("Bonds", "Rate risk (DV01)")),   # both lessons explain it
 ]
 CONCEPT_IDS = ["dv01", "dv01 move", "fx forward", "forward rate", "trade lifecycle", "amend cancel",
                "equity index", "equity pnl", "bond", "bond price yield"]
@@ -189,6 +190,7 @@ def test_the_eval_scores_answers_correctly():
     assert not google_busy(KeyError("sql"))
     assert declines("I must politely decline writing a poem about cats!")      # Gemini's words in the first run
     assert admits_no_data("There is no data for 1990: the book starts in 2025.")
+    assert admits_no_data("The project tracks three equity indices. There is no series named INDEX_ASIA.")
     assert not admits_no_data("The total P&L on that day was $1.2 million.")
 
 
@@ -277,7 +279,8 @@ def test_data_questions(ask, question, sql):
 def test_concept_questions(ask, question, lesson):
     """A concept: the model must search the Learn notes, and the right lesson must be among those it read."""
     answer = ask(question)
-    assert lesson in answer["lessons"], answer["lessons"]
+    accepted = (lesson,) if isinstance(lesson, str) else lesson
+    assert any(name in answer["lessons"] for name in accepted), answer["lessons"]
 
 
 @pytest.mark.eval

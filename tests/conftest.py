@@ -157,6 +157,9 @@ def pytest_sessionfinish(session, exitstatus):
     results = getattr(session, "eval_results", None)
     if not results:
         return
+    if len(results) < 40:                       # a partial run (-k ...) must not replace the saved full run
+        print(f"\nEvaluation not saved: only {len(results)} of the 50 questions ran")
+        return
     import assistant
     seconds = [r["seconds"] for r in results if r["seconds"] is not None]
     counts = {status: sum(r["outcome"] == status for r in results) for status in ("passed", "failed", "skipped")}
