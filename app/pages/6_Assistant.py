@@ -6,6 +6,20 @@ from app_data import ask_database, ask_desk, secret, send, signed_in_email   # f
 from assistant import MAX_QUESTIONS, build_agent, reply
 
 ICONS = Path(__file__).resolve().parent.parent / "icons"
+TYPING = """
+<style>
+.typing { display: inline-flex; gap: 5px; padding: 10px 2px 6px; }
+.typing span { width: 8px; height: 8px; border-radius: 50%; background: #2dd4bf; opacity: 0.35;
+               animation: typing-blink 1.2s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing-blink { 0%, 80%, 100% { opacity: 0.35; transform: translateY(0); }
+                          40% { opacity: 1; transform: translateY(-3px); } }
+.typing-note { font-size: 0.8rem; color: rgba(231, 236, 245, 0.55); margin-top: 2px; }
+</style>
+<div class="typing"><span></span><span></span><span></span></div>
+<div class="typing-note">{note}</div>
+"""
 AVATARS = {"user": str(ICONS / "visitor.svg"), "assistant": str(ICONS / "assistant.svg")}
 
 st.set_page_config(page_title="Assistant", page_icon="💬", layout="wide")
@@ -118,12 +132,18 @@ if question:
     st.session_state.chat.append({"role": "user", "content": question})
     show(st.session_state.chat[-1], len(st.session_state.chat) - 1)
     st.session_state.setdefault("visitor", {})["email"] = signed_in_email()      # read here, in Streamlit's thread
+    note = ("Thinking… the first question about the data can take up to a minute while the API wakes up."
+            if asked == 0 else "Thinking…")
+    typing = st.empty()                             # the three dots, like a chat app, until the answer arrives
+    with typing.container(), st.chat_message("assistant", avatar=AVATARS["assistant"]):
+        st.markdown(TYPING.replace("{note}", note), unsafe_allow_html=True)
     try:
-        with st.spinner("Thinking… (the first question about the data can take up to a minute)"):
-            answer = reply(st.session_state.agent, st.session_state.chat)
+        answer = reply(st.session_state.agent, st.session_state.chat)
     except Exception as error:                      # drop the question, so the visitor can ask again
+        typing.empty()
         st.session_state.chat.pop()
         st.error(explain(error))
         st.stop()
+    typing.empty()
     st.session_state.chat.append(answer)
     show(answer, len(st.session_state.chat) - 1)
